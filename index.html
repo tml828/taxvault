@@ -1706,8 +1706,18 @@
           <div class="page-subtitle">All income and expenses for both businesses in one place</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('bkFileInput').click()">📤 Upload Statement</button>
+          <button class="btn btn-secondary btn-sm" onclick="showBkUploadPicker()">📤 Upload Statement</button>
           <input type="file" id="bkFileInput" accept=".csv,.pdf,image/*" style="display:none" onchange="handleBkUpload(this.files)">
+
+          <!-- Business picker modal for upload -->
+          <div id="bkUploadModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(12px);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+            <div class="glass" style="width:100%;max-width:400px;padding:32px;">
+              <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px;">Which business is this statement for?</div>
+              <div style="font-size:13px;color:var(--text2);margin-bottom:24px;">Every transaction will be assigned to this business. You can still change individual ones after.</div>
+              <div id="bkBizPickerBtns" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;"></div>
+              <button class="btn btn-secondary" style="width:100%;" onclick="document.getElementById('bkUploadModal').style.display='none'">Cancel</button>
+            </div>
+          </div>
           <button class="btn btn-primary btn-sm" onclick="addBkManual()">+ Add Transaction</button>
           <button class="btn btn-secondary btn-sm" onclick="addExpenseEntry()">+ Add Expense</button>
           <button class="btn btn-secondary btn-sm" onclick="generateBkReport()">📊 Tax Report</button>
@@ -3231,21 +3241,49 @@ function renderBookkeepingPage() {
   }).join('');
 }
 
+let _bkForcedBizKey = null;
+
+function showBkUploadPicker() {
+  const q = APP.questionnaire;
+  const businesses = [];
+  if (q?.biz1_name) businesses.push({key:'biz1', name:q.biz1_name});
+  if (q?.biz2_name) businesses.push({key:'biz2', name:q.biz2_name});
+  businesses.push({key:'personal', name:'Personal'});
+
+  const btns = document.getElementById('bkBizPickerBtns');
+  if (btns) {
+    btns.innerHTML = businesses.map(b => `
+      <button class="btn btn-secondary" style="width:100%;justify-content:flex-start;gap:12px;padding:14px 18px;" onclick="selectBkBizAndUpload('${b.key}')">
+        <span style="font-size:18px;">${b.key==='biz1'?'🏢':b.key==='biz2'?'🏬':'👤'}</span>
+        <span style="font-size:14px;font-weight:500;">${b.name}</span>
+      </button>`).join('');
+  }
+  document.getElementById('bkUploadModal').style.display = 'flex';
+}
+
+function selectBkBizAndUpload(bizKey) {
+  _bkForcedBizKey = bizKey;
+  document.getElementById('bkUploadModal').style.display = 'none';
+  document.getElementById('bkFileInput').click();
+}
+
 async function handleBkUpload(files) {
   if (!files || files.length === 0) return;
   if (!APP.apiKey) { toast('Add your Anthropic API key in Settings first', 'error'); showPage('settings'); return; }
+  const forcedBizKey = _bkForcedBizKey;
+  _bkForcedBizKey = null;
   for (const file of Array.from(files)) {
     toast('📤 Analyzing ' + file.name + '…', 'info');
     try {
       const base64 = await fileToBase64(file);
       const mediaType = file.type || 'text/csv';
-      await analyzeBkFile(file.name, base64, mediaType);
+      await analyzeBkFile(file.name, base64, mediaType, forcedBizKey);
     } catch(e) { toast('❌ ' + e.message, 'error'); }
   }
   document.getElementById('bkFileInput').value = '';
 }
 
-async function analyzeBkFile(filename, base64, mediaType) {
+async function analyzeBkFile(filename, base64, mediaType, forcedBizKey) {
   const q = APP.questionnaire;
   const contentParts = [];
   if (mediaType === 'text/csv' || filename.endsWith('.csv')) {
@@ -3260,10 +3298,12 @@ async function analyzeBkFile(filename, base64, mediaType) {
     contentParts.push({type:'text', text:decoded.slice(0, 8000)});
   }
 
-  const bizCtx = [
-    q?.biz1_name && `Business 1: ${q.biz1_name}`,
-    q?.biz2_name && `Business 2: ${q.biz2_name}`
-  ].filter(Boolean).join(', ') || 'No businesses set';
+  const biz1Name = q?.biz1_name || 'Business 1';
+  const biz2Name = q?.biz2_name || 'Business 2';
+  const forcedBizName = forcedBizKey === 'biz1' ? biz1Name : forcedBizKey === 'biz2' ? biz2Name : 'Personal';
+  const bizCtx = forcedBizKey
+    ? `This statement belongs to: ${forcedBizName}. Assign ALL transactions bizKey="${forcedBizKey}".`
+    : [q?.biz1_name && `biz1=${biz1Name}`, q?.biz2_name && `biz2=${biz2Name}`].filter(Boolean).join(', ') || 'No businesses set';
 
   contentParts.push({type:'text', text:`You are an expert bookkeeper. Extract all transactions from this file.
 ${bizCtx}
@@ -3276,7 +3316,7 @@ Return ONLY a JSON array (no markdown). Each transaction:
   "amount": 0.00,
   "type": "Income|Expense",
   "category": "one of: ${[...BK_CATEGORIES.Income,...BK_CATEGORIES.Expense].join(', ')}",
-  "bizKey": "biz1|biz2|personal"
+  "bizKey": "${forcedBizKey || 'biz1|biz2|personal'}"
 }
 
 Return [] if no transactions found.`});
@@ -3311,7 +3351,7 @@ Return [] if no transactions found.`});
   txns.forEach(t => {
     APP.bookkeeping.push({
       id: 'bk_' + Date.now() + '_' + Math.random().toString(36).substr(2,4),
-      bizKey: t.bizKey || 'biz1',
+      bizKey: forcedBizKey || t.bizKey || 'biz1',
       date: t.date || '',
       description: t.description || '',
       category: t.category || 'Other Expense',
