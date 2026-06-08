@@ -1229,6 +1229,9 @@
     </div>
 
     <div class="nav-section">Optimize</div>
+    <div class="nav-item" data-page="deductions" onclick="showPage('deductions')">
+      <span class="nav-icon">🧮</span> Deductions
+    </div>
     <div class="nav-item" data-page="savings" onclick="showPage('savings')">
       <span class="nav-icon">💡</span> Tax Savings
     </div>
@@ -1676,6 +1679,106 @@
           </div>
         </div>
       </div>
+
+      <!-- RITA / City Tax -->
+      <div class="glass panel" style="margin-top:20px;">
+        <div class="panel-title">🏙️ RITA / Ohio City Income Tax</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Many Ohio cities charge their own income tax (typically 1.5–2.5%). RITA collects for most municipalities.</div>
+        <div class="grid-2" style="gap:12px;">
+          <div class="field"><label>City / Municipality</label><input type="text" id="rita_city" placeholder="e.g. Columbus, Westerville" oninput="calcRITA()"></div>
+          <div class="field"><label>City Tax Rate (%)</label><input type="number" id="rita_rate" placeholder="e.g. 2.5" step="0.01" oninput="calcRITA()"></div>
+          <div class="field"><label>Taxable Income ($)</label><input type="number" id="rita_income" placeholder="0" oninput="calcRITA()"></div>
+          <div class="field"><label>City Tax Already Withheld ($)</label><input type="number" id="rita_withheld" placeholder="0" oninput="calcRITA()"></div>
+        </div>
+        <div id="ritaResult" style="margin-top:12px;display:none;padding:14px;background:rgba(0,200,232,0.06);border:1px solid rgba(0,200,232,0.2);border-radius:12px;"></div>
+        <div style="font-size:12px;color:var(--text2);margin-top:10px;">💡 Look up your city's rate: <a href="https://www.ritaohio.com" target="_blank" style="color:var(--accent);">ritaohio.com</a> · <a href="https://tax.ohio.gov" target="_blank" style="color:var(--accent);">tax.ohio.gov</a></div>
+      </div>
+    </div>
+
+    <!-- ===== DEDUCTIONS ===== -->
+    <div id="page-deductions" class="page-content" style="display:none;">
+      <div class="page-header">
+        <div><div class="page-title">Deductions</div><div class="page-subtitle">Key above-the-line deductions and credits for self-employed business owners</div></div>
+      </div>
+
+      <!-- Summary banner -->
+      <div class="glass panel" style="margin-bottom:20px;background:linear-gradient(135deg,rgba(0,200,232,0.10),rgba(0,160,200,0.06));">
+        <div class="panel-title">💰 Total Deductions This Year</div>
+        <div class="grid-4">
+          <div><div style="font-size:11px;color:var(--text2);">QBI (20% Pass-Through)</div><div style="font-size:22px;font-weight:700;color:var(--accent3);font-family:Syne,sans-serif;" id="ded_qbi_total">$—</div></div>
+          <div><div style="font-size:11px;color:var(--text2);">Home Office</div><div style="font-size:22px;font-weight:700;color:var(--accent3);font-family:Syne,sans-serif;" id="ded_homeoffice_total">$—</div></div>
+          <div><div style="font-size:11px;color:var(--text2);">SE Health Insurance</div><div style="font-size:22px;font-weight:700;color:var(--accent3);font-family:Syne,sans-serif;" id="ded_health_total">$—</div></div>
+          <div><div style="font-size:11px;color:var(--text2);">All Deductions Est.</div><div style="font-size:22px;font-weight:700;color:var(--accent);font-family:Syne,sans-serif;" id="ded_grand_total">$—</div></div>
+        </div>
+      </div>
+
+      <!-- QBI Deduction -->
+      <div class="glass panel" style="margin-bottom:16px;">
+        <div class="panel-title">📊 QBI — Qualified Business Income Deduction (Section 199A)</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Self-employed owners can deduct 20% of qualified business income. Phase-out begins at $383,900 MFJ for 2024.</div>
+        <div class="grid-2" style="gap:12px;">
+          <div class="field"><label id="qbi_biz1_label">Business 1 Net Profit ($)</label><input type="number" id="qbi_biz1" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label id="qbi_biz2_label">Business 2 Net Profit ($)</label><input type="number" id="qbi_biz2" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Total Household Income ($)</label><input type="number" id="qbi_total_income" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>W-2 Wages Paid by Businesses ($)</label><input type="number" id="qbi_w2_wages" placeholder="0 if sole prop" oninput="calcDeductions()"></div>
+        </div>
+        <div id="qbiResult" style="margin-top:12px;display:none;padding:14px;background:rgba(0,220,200,0.07);border:1px solid rgba(0,220,200,0.2);border-radius:12px;"></div>
+      </div>
+
+      <!-- Home Office -->
+      <div class="glass panel" style="margin-bottom:16px;">
+        <div class="panel-title">🏠 Home Office Deduction (Form 8829)</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Deduct the business-use portion of your home expenses. Must be used regularly and exclusively for business.</div>
+        <div style="margin-bottom:12px;">
+          <div class="tab-bar"><button class="tab-btn active" id="ho_tab_actual" onclick="switchHOMethod('actual')">Actual Expenses</button><button class="tab-btn" id="ho_tab_simple" onclick="switchHOMethod('simple')">Simplified ($5/sq ft)</button></div>
+        </div>
+        <div id="ho_actual_fields">
+          <div class="grid-2" style="gap:12px;">
+            <div class="field"><label>Office Square Footage</label><input type="number" id="ho_office_sqft" placeholder="e.g. 200" oninput="calcDeductions()"></div>
+            <div class="field"><label>Total Home Square Footage</label><input type="number" id="ho_home_sqft" placeholder="e.g. 2000" oninput="calcDeductions()"></div>
+            <div class="field"><label>Annual Rent or Mortgage Interest ($)</label><input type="number" id="ho_rent" placeholder="0" oninput="calcDeductions()"></div>
+            <div class="field"><label>Utilities ($)</label><input type="number" id="ho_utilities" placeholder="0" oninput="calcDeductions()"></div>
+            <div class="field"><label>Insurance ($)</label><input type="number" id="ho_insurance" placeholder="0" oninput="calcDeductions()"></div>
+            <div class="field"><label>Repairs & Maintenance ($)</label><input type="number" id="ho_repairs" placeholder="0" oninput="calcDeductions()"></div>
+          </div>
+        </div>
+        <div id="ho_simple_fields" style="display:none;">
+          <div class="field" style="max-width:280px;"><label>Office Square Footage (max 300)</label><input type="number" id="ho_simple_sqft" placeholder="e.g. 200" max="300" oninput="calcDeductions()"></div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px;">IRS allows $5 per sq ft up to 300 sq ft = max $1,500 deduction</div>
+        </div>
+        <div id="hoResult" style="margin-top:12px;display:none;padding:14px;background:rgba(0,220,200,0.07);border:1px solid rgba(0,220,200,0.2);border-radius:12px;"></div>
+        <div style="font-size:12px;color:var(--text2);margin-top:10px;">💡 Which business claims this? <select id="ho_bizKey" onchange="calcDeductions()" style="font-size:12px;padding:4px 8px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);"><option value="biz1">Business 1</option><option value="biz2">Business 2</option><option value="both">Split 50/50</option></select></div>
+      </div>
+
+      <!-- SE Health Insurance -->
+      <div class="glass panel" style="margin-bottom:16px;">
+        <div class="panel-title">🏥 Self-Employed Health Insurance Deduction</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">100% of health, dental, and vision premiums are deductible above the line — reducing AGI directly.</div>
+        <div class="grid-2" style="gap:12px;">
+          <div class="field"><label>Your Health/Dental/Vision Premiums ($)</label><input type="number" id="sehi_you" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Spouse's Premiums ($)</label><input type="number" id="sehi_spouse" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Dependents' Premiums ($)</label><input type="number" id="sehi_deps" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Long-Term Care Insurance ($)</label><input type="number" id="sehi_ltc" placeholder="0" oninput="calcDeductions()"></div>
+        </div>
+        <div id="sehiResult" style="margin-top:12px;display:none;padding:14px;background:rgba(0,220,200,0.07);border:1px solid rgba(0,220,200,0.2);border-radius:12px;"></div>
+      </div>
+
+      <!-- Investment Income -->
+      <div class="glass panel" style="margin-bottom:16px;">
+        <div class="panel-title">📈 Investment Income (1099-B / 1099-DIV / 1099-INT)</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Capital gains, dividends, and interest from brokerage accounts and banks.</div>
+        <div class="grid-2" style="gap:12px;">
+          <div class="field"><label>Long-Term Capital Gains ($)</label><input type="number" id="inv_ltcg" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Short-Term Capital Gains ($)</label><input type="number" id="inv_stcg" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Qualified Dividends ($)</label><input type="number" id="inv_qdiv" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Ordinary Dividends ($)</label><input type="number" id="inv_odiv" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Bank Interest (1099-INT) ($)</label><input type="number" id="inv_int" placeholder="0" oninput="calcDeductions()"></div>
+          <div class="field"><label>Federal Tax Withheld on Investments ($)</label><input type="number" id="inv_withheld" placeholder="0" oninput="calcDeductions()"></div>
+        </div>
+        <div id="invResult" style="margin-top:12px;display:none;padding:14px;background:rgba(0,200,232,0.06);border:1px solid rgba(0,200,232,0.2);border-radius:12px;"></div>
+      </div>
+
+      <button class="btn btn-primary" style="width:auto;" onclick="saveDeductions()">💾 Save Deductions</button>
     </div>
 
     <!-- ===== TAX SAVINGS ===== -->
@@ -1774,6 +1877,18 @@
         </div>
         <div id="expenseSummaryCards" class="grid-4" style="margin-bottom:16px;"></div>
         <div id="expenseList"></div>
+      </div>
+
+      <!-- 1099-NEC Tracker -->
+      <div class="glass panel" style="margin-top:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <div class="panel-title" style="margin:0;">📋 1099-NEC Tracker</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px;">Track contractors paid $600+ — you must issue them a 1099-NEC by Jan 31</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="add1099Entry()">+ Add Contractor</button>
+        </div>
+        <div id="tracker1099List"></div>
       </div>
 
       <!-- AI Report Modal -->
@@ -2215,6 +2330,8 @@ function loadApp() {
     expenses:      yd.expenses     || [],
     assets:        yd.assets       || [],
     mileage:       yd.mileage      || [],
+    deductions:    yd.deductions   || {},
+    contractors:   yd.contractors  || [],
     estPayments:   yd.estPayments  || {},
     filingData:    yd.filingData   || {},
     savings:       yd.savings      || null,
@@ -2229,6 +2346,8 @@ function saveLocal() {
     expenses:    APP.expenses,
     assets:      APP.assets,
     mileage:     APP.mileage,
+    deductions:  APP.deductions,
+    contractors: APP.contractors,
     estPayments: APP.estPayments,
     filingData:  APP.filingData,
     savings:     APP.savings,
@@ -2594,7 +2713,8 @@ function showPage(page) {
   if (page === 'dashboard')    refreshDashboard();
   if (page === 'documents')    renderDocuments();
   if (page === 'filing')       { renderFiling(); renderOhioTaxPage(); }
-  if (page === 'bookkeeping')  { renderBookkeepingPage(); renderExpensesPage(); }
+  if (page === 'bookkeeping')  { renderBookkeepingPage(); renderExpensesPage(); render1099Page(); }
+  if (page === 'deductions')    renderDeductionsPage();
   if (page === 'depreciation') renderDepreciationPage();
   if (page === 'mileage')      renderMileagePage();
   if (page === 'estimated')    renderEstimatedPage();
@@ -3528,24 +3648,46 @@ function renderFiling() {
   const docs = APP.documents.filter(d => d.year===APP.taxYear && d.status==='ready' && d.extracted);
   const filingEntries = (APP.filingData || {})[APP.taxYear] || [];
 
+  const d = APP.deductions || {};
+  const hasQBI = !!(parseFloat(d.qbi_biz1||0) || parseFloat(d.qbi_biz2||0));
+  const hasHO  = !!(parseFloat(d.ho_office_sqft||0) || parseFloat(d.ho_simple_sqft||0));
+  const hasSEHI = !!(parseFloat(d.sehi_you||0) || parseFloat(d.sehi_spouse||0));
+  const has1099s = (APP.contractors||[]).filter(c=>c.year===APP.taxYear).length > 0;
+  const flagged1099s = (APP.contractors||[]).filter(c=>c.year===APP.taxYear && parseFloat(c.paid||0)>=600);
+  const hasMileage = (APP.mileage||[]).filter(m=>m.year===APP.taxYear).length > 0;
+  const q = APP.questionnaire;
+  const biz1HO = q?.biz1_homeoffice === 'yes';
+  const biz2HO = q?.biz2_homeoffice === 'yes';
+
   const checks = [
-    {done:!!APP.questionnaire,                                            label:'Questionnaire Complete'},
-    {done:docs.length>0,                                                  label:'Documents Uploaded & Analyzed'},
-    {done:docs.some(d=>['W-2','1099-NEC','1099-MISC'].includes(d.category)), label:'Income Documents Found'},
-    {done:(APP.bookkeeping||[]).length>0,                                 label:'Bookkeeping Entries Added'},
-    {done:(APP.expenses||[]).length>0,                                    label:'Expenses Categorized (Schedule C)'},
-    {done:(APP.assets||[]).length>0,                                      label:'Depreciation Assets Tracked'},
-    {done:Object.values(APP.estPayments||{}).some(v=>v>0),               label:'Estimated Tax Payments Logged'},
-    {done:!!APP.questionnaire?.ohioDistrict,                             label:'Ohio School District Set (SD-100)'},
-    {done:!!APP.savings,                                                  label:'Tax Savings Recommendations Reviewed'},
-    {done:!!APP.apiKey,                                                   label:'AI Analysis Enabled'},
+    {done:!!APP.questionnaire,                                             label:'Questionnaire Complete',               sub:'Personal & business info', critical:true},
+    {done:docs.length>0,                                                   label:'Documents Uploaded',                   sub:docs.length+' uploaded'},
+    {done:docs.some(d=>d.status==='ready'),                               label:'Documents Analyzed by AI',             sub:docs.filter(d=>d.status==='ready').length+' analyzed'},
+    {done:(APP.bookkeeping||[]).filter(b=>b.year===APP.taxYear||!b.year).length>0, label:'Business Income & Expenses Entered',  sub:'Via Business Books', critical:true},
+    {done:hasQBI,                                                          label:'QBI Deduction Calculated',             sub:'20% pass-through — go to Deductions', critical:true},
+    {done:!biz1HO && !biz2HO || hasHO,                                    label:'Home Office Deduction',                sub:(biz1HO||biz2HO)?'You have home office checked — go to Deductions':'Not applicable'},
+    {done:hasSEHI,                                                         label:'SE Health Insurance Entered',          sub:'Go to Deductions page'},
+    {done:hasMileage,                                                      label:'Business Mileage Logged',              sub:(APP.mileage||[]).filter(m=>m.year===APP.taxYear).length+' trips'},
+    {done:(APP.assets||[]).length>0,                                       label:'Depreciation Assets Tracked',          sub:'Section 179 / MACRS'},
+    {done:Object.values(APP.estPayments||{}).some(v=>v>0),                label:'Estimated Tax Payments Logged',        sub:'Quarterly payments'},
+    {done:!!APP.questionnaire?.ohioDistrict,                              label:'Ohio School District Set',             sub:'Required for SD-100', critical:true},
+    {done:flagged1099s.length===0 || has1099s,                            label:'1099-NEC Contractors Reviewed',        sub:flagged1099s.length>0?flagged1099s.length+' need forms by Jan 31':'No contractors over $600'},
+    {done:!!APP.savings,                                                   label:'Tax Savings Reviewed',                 sub:'AI recommendations'},
   ];
   const done = checks.filter(c=>c.done).length;
   const pct = Math.round((done/checks.length)*100);
   const pf = document.getElementById('filingProgress'); if(pf) pf.style.width=pct+'%';
   const pp = document.getElementById('filingPct'); if(pp) pp.textContent=pct+'% Complete';
+  const criticalMissing = checks.filter(c => !c.done && c.critical);
   const fc = document.getElementById('filingChecklist');
-  if(fc) fc.innerHTML = checks.map(c=>`<div class="checklist-item ${c.done?'done':''}"><div class="checklist-icon">${c.done?'✅':'⭕'}</div><div class="checklist-text">${c.label}</div></div>`).join('');
+  if(fc) {
+    let html = '';
+    if (criticalMissing.length > 0) {
+      html += `<div style="padding:10px 14px;background:rgba(255,69,58,0.10);border:1px solid rgba(255,69,58,0.25);border-radius:10px;font-size:13px;color:var(--danger);margin-bottom:12px;">⛔ <strong>${criticalMissing.length} critical item${criticalMissing.length>1?'s':''} missing before you can file:</strong> ${criticalMissing.map(c=>c.label).join(', ')}</div>`;
+    }
+    html += checks.map(c=>`<div class="checklist-item ${c.done?'done':''}"><div class="checklist-icon">${c.done?'✅':c.critical?'🔴':'⭕'}</div><div class="checklist-text">${c.label}<small>${c.sub||''}</small></div></div>`).join('');
+    fc.innerHTML = html;
+  }
 
   const tableEl = document.getElementById('ftusaTable');
   if(!tableEl) return;
@@ -4528,6 +4670,236 @@ function updateMileage(id, field, val) {
   if (m) { m[field] = field === 'miles' ? parseFloat(val)||0 : val; saveApp(); renderMileagePage(); }
 }
 
+
+// ── DEDUCTIONS PAGE ──────────────────────────────────────────
+
+let _hoMethod = 'actual';
+
+function switchHOMethod(method) {
+  _hoMethod = method;
+  document.getElementById('ho_actual_fields').style.display = method === 'actual' ? '' : 'none';
+  document.getElementById('ho_simple_fields').style.display = method === 'simple' ? '' : 'none';
+  document.getElementById('ho_tab_actual').classList.toggle('active', method === 'actual');
+  document.getElementById('ho_tab_simple').classList.toggle('active', method === 'simple');
+  calcDeductions();
+}
+
+function renderDeductionsPage() {
+  const q = APP.questionnaire;
+  const d = APP.deductions || {};
+
+  // Update business name labels
+  const ql1 = document.getElementById('qbi_biz1_label');
+  const ql2 = document.getElementById('qbi_biz2_label');
+  if (ql1) ql1.textContent = (q?.biz1_name || 'Business 1') + ' Net Profit ($)';
+  if (ql2) ql2.textContent = (q?.biz2_name || 'Business 2') + ' Net Profit ($)';
+
+  // Update home office biz picker
+  const hoBiz = document.getElementById('ho_bizKey');
+  if (hoBiz) {
+    const b1 = q?.biz1_name || 'Business 1';
+    const b2 = q?.biz2_name || 'Business 2';
+    hoBiz.innerHTML = `<option value="biz1">${b1}</option><option value="biz2">${b2}</option><option value="both">Split 50/50</option>`;
+  }
+
+  // Restore saved values
+  const fields = ['qbi_biz1','qbi_biz2','qbi_total_income','qbi_w2_wages',
+    'ho_office_sqft','ho_home_sqft','ho_rent','ho_utilities','ho_insurance','ho_repairs','ho_simple_sqft',
+    'sehi_you','sehi_spouse','sehi_deps','sehi_ltc',
+    'inv_ltcg','inv_stcg','inv_qdiv','inv_odiv','inv_int','inv_withheld'];
+  fields.forEach(f => { const el = document.getElementById(f); if (el && d[f] !== undefined) el.value = d[f]; });
+  if (d.ho_method) switchHOMethod(d.ho_method);
+  if (d.ho_bizKey) { const el = document.getElementById('ho_bizKey'); if (el) el.value = d.ho_bizKey; }
+
+  calcDeductions();
+}
+
+function saveDeductions() {
+  const fields = ['qbi_biz1','qbi_biz2','qbi_total_income','qbi_w2_wages',
+    'ho_office_sqft','ho_home_sqft','ho_rent','ho_utilities','ho_insurance','ho_repairs','ho_simple_sqft',
+    'sehi_you','sehi_spouse','sehi_deps','sehi_ltc',
+    'inv_ltcg','inv_stcg','inv_qdiv','inv_odiv','inv_int','inv_withheld'];
+  const d = {};
+  fields.forEach(f => { const el = document.getElementById(f); if (el) d[f] = el.value; });
+  d.ho_method = _hoMethod;
+  const hoBiz = document.getElementById('ho_bizKey');
+  if (hoBiz) d.ho_bizKey = hoBiz.value;
+  APP.deductions = d;
+  saveApp();
+  toast('Deductions saved', 'success');
+}
+
+function calcDeductions() {
+  const n = id => parseFloat(document.getElementById(id)?.value || 0) || 0;
+
+  // QBI
+  const biz1Net = n('qbi_biz1'), biz2Net = n('qbi_biz2');
+  const totalQBI = biz1Net + biz2Net;
+  const totalHHIncome = n('qbi_total_income');
+  const w2Wages = n('qbi_w2_wages');
+  const QBI_THRESHOLD_MFJ = 383900;
+  let qbiDed = totalQBI * 0.20;
+  if (totalHHIncome > QBI_THRESHOLD_MFJ && w2Wages > 0) {
+    const w2Limit = w2Wages * 0.50;
+    qbiDed = Math.min(qbiDed, w2Limit);
+  } else if (totalHHIncome > QBI_THRESHOLD_MFJ + 100000) {
+    qbiDed = 0;
+  }
+  qbiDed = Math.max(0, Math.round(qbiDed));
+  const qbiEl = document.getElementById('qbiResult');
+  if (qbiEl && totalQBI > 0) {
+    qbiEl.style.display = '';
+    qbiEl.innerHTML = `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div><div style="font-size:11px;color:var(--text2);">Combined QBI</div><div style="font-size:18px;font-weight:700;color:var(--accent);">$${totalQBI.toLocaleString()}</div></div>
+      <div><div style="font-size:11px;color:var(--text2);">20% Deduction</div><div style="font-size:18px;font-weight:700;color:var(--accent3);">$${qbiDed.toLocaleString()}</div></div>
+      <div style="font-size:12px;color:var(--text2);align-self:center;">${totalHHIncome > QBI_THRESHOLD_MFJ ? '⚠️ Phase-out applies — W-2 wage limit used' : '✅ Full 20% deduction available'}</div>
+    </div>`;
+  } else if (qbiEl) { qbiEl.style.display = 'none'; }
+
+  // Home Office
+  let hoDed = 0;
+  const hoEl = document.getElementById('hoResult');
+  if (_hoMethod === 'simple') {
+    const sqft = Math.min(n('ho_simple_sqft'), 300);
+    hoDed = Math.round(sqft * 5);
+    if (hoEl && sqft > 0) {
+      hoEl.style.display = '';
+      hoEl.innerHTML = `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Simplified method: ${sqft} sq ft × $5</span><span style="font-size:18px;font-weight:700;color:var(--accent3);">$${hoDed.toLocaleString()}</span></div>`;
+    } else if (hoEl) hoEl.style.display = 'none';
+  } else {
+    const offSqft = n('ho_office_sqft'), homeSqft = n('ho_home_sqft');
+    if (offSqft > 0 && homeSqft > 0) {
+      const pct = offSqft / homeSqft;
+      const totalHome = n('ho_rent') + n('ho_utilities') + n('ho_insurance') + n('ho_repairs');
+      hoDed = Math.round(totalHome * pct);
+      const directExpenses = 0;
+      if (hoEl && totalHome > 0) {
+        hoEl.style.display = '';
+        hoEl.innerHTML = `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div><div style="font-size:11px;color:var(--text2);">Business Use %</div><div style="font-size:18px;font-weight:700;color:var(--accent);">${(pct*100).toFixed(1)}%</div></div>
+          <div><div style="font-size:11px;color:var(--text2);">Total Home Expenses</div><div style="font-size:18px;font-weight:700;color:var(--accent);">$${totalHome.toLocaleString()}</div></div>
+          <div><div style="font-size:11px;color:var(--text2);">Deductible Amount</div><div style="font-size:18px;font-weight:700;color:var(--accent3);">$${hoDed.toLocaleString()}</div></div>
+        </div>`;
+      } else if (hoEl) hoEl.style.display = 'none';
+    }
+  }
+
+  // SE Health Insurance
+  const sehiTotal = n('sehi_you') + n('sehi_spouse') + n('sehi_deps') + n('sehi_ltc');
+  const sehiEl = document.getElementById('sehiResult');
+  if (sehiEl && sehiTotal > 0) {
+    sehiEl.style.display = '';
+    sehiEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--text2);">Total premiums deductible (above the line, Form 1040 Schedule 1)</span>
+      <span style="font-size:18px;font-weight:700;color:var(--accent3);">$${sehiTotal.toLocaleString()}</span>
+    </div>`;
+  } else if (sehiEl) sehiEl.style.display = 'none';
+
+  // Investment Income
+  const ltcg = n('inv_ltcg'), stcg = n('inv_stcg'), qdiv = n('inv_qdiv'), odiv = n('inv_odiv'), bint = n('inv_int'), invW = n('inv_withheld');
+  const totalInv = ltcg + stcg + qdiv + odiv + bint;
+  const invEl = document.getElementById('invResult');
+  if (invEl && totalInv > 0) {
+    invEl.style.display = '';
+    invEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+      ${ltcg>0?`<div><div style="font-size:11px;color:var(--text2);">LT Capital Gains</div><div style="font-weight:600;color:var(--accent3);">$${ltcg.toLocaleString()}<span style="font-size:10px;color:var(--text2);"> (0/15/20%)</span></div></div>`:''}
+      ${stcg>0?`<div><div style="font-size:11px;color:var(--text2);">ST Capital Gains</div><div style="font-weight:600;color:var(--warn);">$${stcg.toLocaleString()}<span style="font-size:10px;color:var(--text2);"> (ordinary rate)</span></div></div>`:''}
+      ${qdiv>0?`<div><div style="font-size:11px;color:var(--text2);">Qualified Dividends</div><div style="font-weight:600;color:var(--accent3);">$${qdiv.toLocaleString()}<span style="font-size:10px;color:var(--text2);"> (0/15/20%)</span></div></div>`:''}
+      ${odiv>0?`<div><div style="font-size:11px;color:var(--text2);">Ordinary Dividends</div><div style="font-weight:600;color:var(--warn);">$${odiv.toLocaleString()}<span style="font-size:10px;color:var(--text2);"> (ordinary rate)</span></div></div>`:''}
+      ${bint>0?`<div><div style="font-size:11px;color:var(--text2);">Bank Interest</div><div style="font-weight:600;color:var(--warn);">$${bint.toLocaleString()}</div></div>`:''}
+      ${invW>0?`<div><div style="font-size:11px;color:var(--text2);">Withheld</div><div style="font-weight:600;color:var(--accent);">$${invW.toLocaleString()}</div></div>`:''}
+    </div>`;
+  } else if (invEl) invEl.style.display = 'none';
+
+  // Grand totals
+  const grand = qbiDed + hoDed + sehiTotal;
+  const setEl = id => { const e = document.getElementById(id); if(e) e.textContent = '$' + (arguments[1]||0).toLocaleString(); };
+  const el = id => document.getElementById(id);
+  if(el('ded_qbi_total'))       el('ded_qbi_total').textContent       = '$' + qbiDed.toLocaleString();
+  if(el('ded_homeoffice_total')) el('ded_homeoffice_total').textContent = '$' + hoDed.toLocaleString();
+  if(el('ded_health_total'))    el('ded_health_total').textContent    = '$' + sehiTotal.toLocaleString();
+  if(el('ded_grand_total'))     el('ded_grand_total').textContent     = '$' + grand.toLocaleString();
+}
+
+// ── 1099-NEC TRACKER ─────────────────────────────────────────
+
+function render1099Page() {
+  if (!APP.contractors) APP.contractors = [];
+  const q = APP.questionnaire;
+  const year = APP.taxYear;
+  const el = document.getElementById('tracker1099List');
+  if (!el) return;
+
+  const contractors = APP.contractors.filter(c => c.year === year);
+  const flagged = contractors.filter(c => parseFloat(c.paid||0) >= 600);
+
+  if (!contractors.length) {
+    el.innerHTML = `<div class="empty-state" style="padding:20px;"><div class="empty-icon" style="font-size:32px;">📋</div><div class="empty-title">No contractors logged</div><div class="empty-sub">Add anyone you paid for services — those paid $600+ need a 1099-NEC by Jan 31</div></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    ${flagged.length > 0 ? `<div style="padding:10px 14px;background:rgba(255,184,48,0.1);border:1px solid rgba(255,184,48,0.25);border-radius:10px;font-size:13px;color:var(--warn);margin-bottom:12px;">⚠️ <strong>${flagged.length} contractor${flagged.length>1?'s':''}</strong> paid $600+ — you must issue 1099-NEC forms by Jan 31, ${parseInt(year)+1}</div>` : ''}
+    ${contractors.map(c => {
+      const paid = parseFloat(c.paid||0);
+      const needs1099 = paid >= 600;
+      return `<div class="glass panel" style="padding:14px;margin-bottom:8px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;align-items:center;">
+          <input type="text" value="${c.name||''}" placeholder="Contractor name" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','name',this.value)">
+          <input type="text" value="${c.service||''}" placeholder="Service provided" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','service',this.value)">
+          <input type="number" value="${c.paid||''}" placeholder="Amount paid ($)" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','paid',this.value)">
+          <input type="text" value="${c.ssn_ein||''}" placeholder="SSN / EIN (last 4)" maxlength="4" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','ssn_ein',this.value)">
+          <select style="font-size:12px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','bizKey',this.value)">
+            ${q?.biz1_name?`<option value="biz1" ${c.bizKey==='biz1'?'selected':''}>${q.biz1_name}</option>`:''}
+            ${q?.biz2_name?`<option value="biz2" ${c.bizKey==='biz2'?'selected':''}>${q.biz2_name}</option>`:''}
+          </select>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge ${needs1099?'badge-analyzing':'badge-ready'}" style="font-size:10px;">${needs1099?'1099 Required':'Under $600'}</span>
+            <button class="btn btn-danger btn-sm" onclick="delete1099('${c.id}')">🗑</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+function add1099Entry() {
+  if (!APP.contractors) APP.contractors = [];
+  const q = APP.questionnaire;
+  APP.contractors.push({ id:'c_'+Date.now(), year:APP.taxYear, name:'', service:'', paid:0, ssn_ein:'', bizKey:'biz1' });
+  saveApp(); render1099Page();
+}
+
+function delete1099(id) {
+  if (!confirm('Remove this contractor?')) return;
+  APP.contractors = (APP.contractors||[]).filter(c => c.id !== id);
+  saveApp(); render1099Page();
+}
+
+function update1099(id, field, val) {
+  const c = (APP.contractors||[]).find(c => c.id === id);
+  if (c) { c[field] = val; saveApp(); if (field === 'paid') render1099Page(); }
+}
+
+// ── RITA CALCULATOR ──────────────────────────────────────────
+
+function calcRITA() {
+  const city = document.getElementById('rita_city')?.value?.trim() || '';
+  const rate = parseFloat(document.getElementById('rita_rate')?.value || 0) / 100;
+  const income = parseFloat(document.getElementById('rita_income')?.value || 0);
+  const withheld = parseFloat(document.getElementById('rita_withheld')?.value || 0);
+  const el = document.getElementById('ritaResult');
+  if (!el || !rate || !income) { if (el) el.style.display = 'none'; return; }
+  const tax = income * rate;
+  const owed = Math.max(0, tax - withheld);
+  el.style.display = '';
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div><div style="font-size:11px;color:var(--text2);">${city||'City'} Tax (${(rate*100).toFixed(2)}%)</div><div style="font-size:18px;font-weight:700;color:var(--accent);">$${Math.round(tax).toLocaleString()}</div></div>
+    <div><div style="font-size:11px;color:var(--text2);">Already Withheld</div><div style="font-size:18px;font-weight:700;color:var(--accent3);">$${Math.round(withheld).toLocaleString()}</div></div>
+    <div><div style="font-size:11px;color:var(--text2);">Balance Due</div><div style="font-size:18px;font-weight:700;color:${owed>0?'var(--warn)':'var(--accent3)'};">$${Math.round(owed).toLocaleString()}</div></div>
+  </div>`;
+}
+
+
 // ── OHIO DISTRICTS DATA ──────────────────────────────────────
 
 const OHIO_DISTRICTS = {
@@ -4967,6 +5339,9 @@ document.addEventListener('click', e => {
   </div>
 
   <div class="mob-drop-section">Optimize</div>
+  <div class="mob-drop-item" id="mdeductions" onclick="mobNav('deductions','mdeductions')">
+    <span class="mob-drop-icon">🧮</span> Deductions
+  </div>
   <div class="mob-drop-item" id="msavings" onclick="mobNav('savings','msavings')">
     <span class="mob-drop-icon">💡</span> Tax Savings
   </div>
