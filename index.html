@@ -4135,18 +4135,22 @@ function refreshDashboard() {
     ws.innerHTML = workflow.map(s => {
       const isCurrent = s.step === currentStep;
       const isPast = s.done;
-      const statusColor = isPast ? 'var(--accent)' : isCurrent ? 'var(--warn)' : 'rgba(255,255,255,0.2)';
-      const numBg = isPast ? 'rgba(0,200,232,0.15)' : isCurrent ? 'rgba(255,193,7,0.15)' : 'rgba(255,255,255,0.05)';
-      const numColor = isPast ? 'var(--accent)' : isCurrent ? 'var(--warn)' : 'var(--text2)';
-      const badgeText = isPast ? '✓' : s.step;
-      return `<div onclick="showPage('${s.page}')" style="display:flex;align-items:center;gap:14px;padding:11px 14px;border-radius:12px;cursor:pointer;transition:background 0.15s;margin-bottom:4px;${isCurrent?'background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.18);':'border:1px solid transparent;'}" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='${isCurrent?'rgba(255,193,7,0.06)':'transparent'}'">
+      const isSkipped = !s.done && !s.required && s.step < currentStep;
+      const statusColor = isPast ? 'var(--accent)' : isCurrent ? 'var(--warn)' : isSkipped ? 'var(--danger)' : 'rgba(255,255,255,0.2)';
+      const numBg = isPast ? 'rgba(0,200,232,0.15)' : isCurrent ? 'rgba(255,193,7,0.15)' : isSkipped ? 'rgba(255,69,58,0.12)' : 'rgba(255,255,255,0.05)';
+      const numColor = isPast ? 'var(--accent)' : isCurrent ? 'var(--warn)' : isSkipped ? 'var(--danger)' : 'var(--text2)';
+      const badgeText = isPast ? '✓' : isSkipped ? '!' : s.step;
+      const rowBg = isCurrent ? 'rgba(255,193,7,0.06)' : isSkipped ? 'rgba(255,69,58,0.04)' : 'transparent';
+      const rowBorder = isCurrent ? '1px solid rgba(255,193,7,0.18)' : isSkipped ? '1px solid rgba(255,69,58,0.18)' : '1px solid transparent';
+      const rightLabel = isCurrent ? '← now' : isPast ? 'done' : isSkipped ? '⚠️ skipped' : '';
+      return `<div onclick="showPage('${s.page}')" style="display:flex;align-items:center;gap:14px;padding:11px 14px;border-radius:12px;cursor:pointer;transition:background 0.15s;margin-bottom:4px;background:${rowBg};${rowBorder?'border:'+rowBorder+';':''}" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='${rowBg}'">
         <div style="width:30px;height:30px;border-radius:50%;background:${numBg};border:1.5px solid ${statusColor};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${numColor};flex-shrink:0;">${badgeText}</div>
         <div style="font-size:18px;flex-shrink:0;">${s.icon}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:${isCurrent?'700':'500'};color:${isPast?'var(--text2)':isCurrent?'#fff':'var(--text1)'};${isPast?'text-decoration:line-through;opacity:0.5;':''}">${s.label}${s.required&&!isPast?' <span style="font-size:10px;color:var(--danger);font-weight:400;">required</span>':''}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:1px;">${s.sub}</div>
         </div>
-        <div style="font-size:12px;color:${statusColor};flex-shrink:0;">${isCurrent?'← now':isPast?'done':''}</div>
+        <div style="font-size:12px;color:${statusColor};flex-shrink:0;">${rightLabel}</div>
       </div>`;
     }).join('');
   }
