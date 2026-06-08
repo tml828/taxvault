@@ -1233,26 +1233,15 @@
       <span class="nav-icon">💡</span> Tax Savings
     </div>
     <div class="nav-item" data-page="bookkeeping" onclick="showPage('bookkeeping')">
-      <span class="nav-icon">📒</span> Bookkeeping
-    </div>
-    <div class="nav-item" data-page="expenses" onclick="showPage('expenses')">
-      <span class="nav-icon">🧾</span> Expenses
+      <span class="nav-icon">📒</span> Business Books
     </div>
     <div class="nav-item" data-page="depreciation" onclick="showPage('depreciation')">
       <span class="nav-icon">📉</span> Depreciation
     </div>
 
-    <div class="nav-section">Ohio Tools</div>
-    <div class="nav-item" data-page="ohiotax" onclick="showPage('ohiotax')">
-      <span class="nav-icon">🏔️</span> Ohio Tax Tools
-    </div>
-
     <div class="nav-section">Planning</div>
     <div class="nav-item" data-page="estimated" onclick="showPage('estimated')">
       <span class="nav-icon">📅</span> Est. Tax Payments
-    </div>
-    <div class="nav-item" data-page="deadlines" onclick="showPage('deadlines')">
-      <span class="nav-icon">⏰</span> Deadlines
     </div>
 
     <div class="nav-section">Account</div>
@@ -1331,6 +1320,12 @@
           <div class="panel-title">🏢 Business & Ohio</div>
           <div id="dashChecklistBiz"></div>
         </div>
+      </div>
+
+      <!-- UPCOMING DEADLINES -->
+      <div class="glass panel" style="margin-top:20px;">
+        <div class="panel-title" style="margin-bottom:12px;">⏰ Upcoming Deadlines</div>
+        <div id="dashDeadlines"></div>
       </div>
 
       <!-- API KEY NOTICE if not set -->
@@ -1647,6 +1642,37 @@
         <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">These values map directly to FreeTaxUSA sections. Enter them exactly as shown.</div>
         <div id="ftusaTable"></div>
       </div>
+
+      <!-- Ohio Tools folded in -->
+      <div class="glass panel" style="margin-top:20px;">
+        <div class="panel-title">🏔️ Ohio Tools</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+          <!-- OBID -->
+          <div style="flex:1;min-width:280px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Ohio Business Income Deduction (OBID)</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">First $250K per business is fully deductible. Above that: flat 3%.</div>
+            <div class="grid-2" style="gap:10px;">
+              <div class="field"><label id="obid_biz1_label">Business 1 Net ($)</label><input type="number" id="obid_biz1" placeholder="0" oninput="calcOBID()"></div>
+              <div class="field"><label id="obid_biz2_label">Business 2 Net ($)</label><input type="number" id="obid_biz2" placeholder="0" oninput="calcOBID()"></div>
+            </div>
+            <div id="obidResult" style="margin-top:10px;padding:12px;background:rgba(0,200,232,0.06);border:1px solid rgba(0,200,232,0.2);border-radius:12px;display:none;"></div>
+          </div>
+          <div style="width:1px;background:rgba(255,255,255,0.06);align-self:stretch;margin:0 4px;"></div>
+          <!-- SD-100 -->
+          <div style="flex:1;min-width:280px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:6px;">SD-100 School District Tax</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Required if your school district has an income tax.</div>
+            <div class="grid-2" style="gap:10px;">
+              <div class="field"><label>School District</label><input type="text" id="sd_district" placeholder="e.g. Avon Lake City (4701)"></div>
+              <div class="field"><label>Tax Rate (%)</label><input type="number" id="sd_rate" placeholder="1.25" step="0.01" oninput="calcSD100()"></div>
+              <div class="field"><label>Ohio Adjusted Income ($)</label><input type="number" id="sd_income" placeholder="0" oninput="calcSD100()"></div>
+              <div class="field"><label>Withheld Already ($)</label><input type="number" id="sd_withheld" placeholder="0" oninput="calcSD100()"></div>
+            </div>
+            <div id="sd100Result" style="margin-top:10px;padding:12px;background:rgba(0,200,232,0.06);border:1px solid rgba(0,200,232,0.2);border-radius:12px;display:none;"></div>
+            <div style="font-size:11px;color:var(--text2);margin-top:8px;">Find your rate: <a href="https://tax.ohio.gov" target="_blank" style="color:var(--accent);">tax.ohio.gov</a></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ===== TAX SAVINGS ===== -->
@@ -1676,20 +1702,21 @@
     <div id="page-bookkeeping" class="page-content" style="display:none;">
       <div class="page-header">
         <div>
-          <div class="page-title">Bookkeeping</div>
-          <div class="page-subtitle">Upload bank statements, receipts, or CSVs — AI categorizes everything for your tax report</div>
+          <div class="page-title">Business Books</div>
+          <div class="page-subtitle">All income and expenses for both businesses in one place</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('bkFileInput').click()">📤 Upload File</button>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('bkFileInput').click()">📤 Upload Statement</button>
           <input type="file" id="bkFileInput" accept=".csv,.pdf,image/*" style="display:none" onchange="handleBkUpload(this.files)">
           <button class="btn btn-primary btn-sm" onclick="addBkManual()">+ Add Transaction</button>
+          <button class="btn btn-secondary btn-sm" onclick="addExpenseEntry()">+ Add Expense</button>
           <button class="btn btn-secondary btn-sm" onclick="generateBkReport()">📊 Tax Report</button>
         </div>
       </div>
 
       <!-- Summary Cards -->
       <div class="grid-4" style="margin-bottom:20px;" id="bkSummaryCards">
-        <div class="stat-card blue"><div class="stat-label">Total Income</div><div class="stat-value" id="bkTotalIncome">$0</div></div>
+        <div class="stat-card blue"><div class="stat-label">Total Income</div><div class="stat-value" id="bkTotalIncome">$0</div><div class="stat-sub" id="bkBiz1Label"></div><div class="stat-sub" id="bkBiz2Label"></div></div>
         <div class="stat-card warn"><div class="stat-label">Total Expenses</div><div class="stat-value" id="bkTotalExpenses">$0</div></div>
         <div class="stat-card green"><div class="stat-label">Net Profit</div><div class="stat-value" id="bkNetProfit">$0</div></div>
         <div class="stat-card purple"><div class="stat-label">Transactions</div><div class="stat-value" id="bkTxCount">0</div></div>
@@ -1715,6 +1742,26 @@
 
       <!-- Transaction List -->
       <div id="bkTxList"></div>
+
+      <!-- Manual Expenses Section -->
+      <div class="glass panel" style="margin-top:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="panel-title" style="margin:0;">🧾 Manual Expenses</div>
+          <div style="display:flex;gap:8px;">
+            <select id="expBizFilter" onchange="renderExpensesPage()" style="font-size:12px;padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);">
+              <option value="all">All Businesses</option>
+            </select>
+            <select id="expCatFilter" onchange="renderExpensesPage()" style="font-size:12px;padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);">
+              <option value="all">All Categories</option>
+              <option>Supplies</option><option>Meals (50%)</option><option>Travel</option>
+              <option>Home Office</option><option>Vehicle</option><option>Software</option>
+              <option>Professional Fees</option><option>Advertising</option><option>Revenue</option><option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div id="expenseSummaryCards" class="grid-4" style="margin-bottom:16px;"></div>
+        <div id="expenseList"></div>
+      </div>
 
       <!-- AI Report Modal -->
       <div id="bkReportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;overflow-y:auto;padding:20px;">
@@ -2480,13 +2527,10 @@ function showPage(page) {
   // Re-render on navigate
   if (page === 'dashboard')    refreshDashboard();
   if (page === 'documents')    renderDocuments();
-  if (page === 'filing')       renderFiling();
-  if (page === 'bookkeeping')  renderBookkeepingPage();
-  if (page === 'expenses')     renderExpensesPage();
+  if (page === 'filing')       { renderFiling(); renderOhioTaxPage(); }
+  if (page === 'bookkeeping')  { renderBookkeepingPage(); renderExpensesPage(); }
   if (page === 'depreciation') renderDepreciationPage();
-  if (page === 'ohiotax')      renderOhioTaxPage();
   if (page === 'estimated')    renderEstimatedPage();
-  if (page === 'deadlines')    renderDeadlines();
   if (page === 'savings')      renderSavingsPage();
   if (page === 'questionnaire'){ loadQuestionnaireForm(); }
   // settings page is static HTML - no render needed
@@ -3139,10 +3183,18 @@ function renderBookkeepingPage() {
   const totalIncome   = txns.filter(t=>t.type==='Income').reduce((s,t)=>s+parseFloat(t.amount||0),0);
   const totalExpenses = txns.filter(t=>t.type==='Expense').reduce((s,t)=>s+parseFloat(t.amount||0),0);
   const el = id => document.getElementById(id);
+  const biz1Name = q?.biz1_name || 'Business 1';
+  const biz2Name = q?.biz2_name || 'Business 2';
+  const biz1Inc = txns.filter(t=>t.bizKey==='biz1'&&t.type==='Income').reduce((s,t)=>s+parseFloat(t.amount||0),0);
+  const biz2Inc = txns.filter(t=>t.bizKey==='biz2'&&t.type==='Income').reduce((s,t)=>s+parseFloat(t.amount||0),0);
   if(el('bkTotalIncome'))   el('bkTotalIncome').textContent   = '$' + totalIncome.toLocaleString();
   if(el('bkTotalExpenses')) el('bkTotalExpenses').textContent = '$' + totalExpenses.toLocaleString();
   if(el('bkNetProfit'))     el('bkNetProfit').textContent     = '$' + (totalIncome-totalExpenses).toLocaleString();
   if(el('bkTxCount'))       el('bkTxCount').textContent       = txns.length;
+  const biz1El = document.getElementById('bkBiz1Label');
+  const biz2El = document.getElementById('bkBiz2Label');
+  if (biz1El) biz1El.textContent = biz1Name + ': $' + biz1Inc.toLocaleString();
+  if (biz2El) biz2El.textContent = biz2Name + ': $' + biz2Inc.toLocaleString();
 
   // Render list
   const listEl = document.getElementById('bkTxList');
@@ -3595,6 +3647,53 @@ function refreshDashboard() {
       <div class="checklist-icon">${item.done?'✅':'⭕'}</div>
       <div class="checklist-text">${item.label}<small>${item.sub}</small></div>
     </div>`).join('');
+
+  renderDashDeadlines();
+}
+
+function renderDashDeadlines() {
+  const el = document.getElementById('dashDeadlines');
+  if (!el) return;
+  const yr = parseInt(APP.taxYear)||new Date().getFullYear()-1;
+  const nextYr = yr + 1;
+  const today = new Date();
+  const all = [
+    { date:`Jan 15, ${nextYr}`,  label:`Q4 Estimated Payment Due`,   icon:'💳', link:'https://directpay.irs.gov' },
+    { date:`Mar 15, ${nextYr}`,  label:`S-Corp / Partnership Returns Due`, icon:'🏢' },
+    { date:`Apr 15, ${nextYr}`,  label:`Federal Return Due (Form 1040)`,  icon:'🇺🇸', urgent:true },
+    { date:`Apr 15, ${nextYr}`,  label:`Ohio IT-1040 & SD-100 Due`,        icon:'🏔️', urgent:true },
+    { date:`Apr 15, ${nextYr}`,  label:`Q1 Estimated Payment Due`,         icon:'💳', link:'https://directpay.irs.gov' },
+    { date:`Jun 16, ${nextYr}`,  label:`Q2 Estimated Payment Due`,         icon:'💳' },
+    { date:`Sep 15, ${nextYr}`,  label:`Q3 Estimated Payment Due`,         icon:'💳' },
+    { date:`Oct 15, ${nextYr}`,  label:`Extended Return Deadline`,         icon:'📋' },
+  ];
+  const upcoming = all.filter(d => {
+    const dDate = new Date(d.date);
+    const daysLeft = Math.ceil((dDate - today) / (1000*60*60*24));
+    return daysLeft > -30; // show past-due for 30 days
+  }).slice(0, 5); // show next 5
+
+  if (!upcoming.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text2);padding:8px 0;">No upcoming deadlines in the next few months.</div>';
+    return;
+  }
+  el.innerHTML = upcoming.map(d => {
+    const dDate = new Date(d.date);
+    const daysLeft = Math.ceil((dDate - today) / (1000*60*60*24));
+    const isPast = daysLeft < 0;
+    const isUrgent = !isPast && daysLeft <= 30;
+    const badgeClass = isPast ? 'badge-error' : isUrgent ? 'badge-analyzing' : 'badge-ready';
+    const badgeText = isPast ? 'Past due' : daysLeft === 0 ? 'TODAY' : daysLeft + 'd away';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+      <span style="font-size:20px;">${d.icon}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;">${d.label}</div>
+        <div style="font-size:11px;color:var(--text2);">${d.date}</div>
+      </div>
+      <span class="badge ${badgeClass}">${badgeText}</span>
+      ${d.link&&!isPast?`<a href="${d.link}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:11px;padding:5px 10px;">Pay</a>`:''}
+    </div>`;
+  }).join('');
 }
 
 
@@ -3605,6 +3704,11 @@ function renderOhioTaxPage() {
   // Pre-fill from questionnaire
   const d1 = document.getElementById('sd_district');
   if (d1 && q?.ohioDistrict) d1.value = q.ohioDistrict;
+  // Update OBID labels with actual business names
+  const lbl1 = document.getElementById('obid_biz1_label');
+  const lbl2 = document.getElementById('obid_biz2_label');
+  if (lbl1) lbl1.textContent = (q?.biz1_name || 'Business 1') + ' Net ($)';
+  if (lbl2) lbl2.textContent = (q?.biz2_name || 'Business 2') + ' Net ($)';
   // Pre-fill biz income from bookkeeping totals
   if (APP.bookkeeping) {
     const biz1Inc = (APP.bookkeeping||[]).filter(e=>e.bizKey==='biz1'&&e.type==='Income').reduce((s,e)=>s+parseFloat(e.amount||0),0);
@@ -4632,26 +4736,15 @@ document.addEventListener('click', e => {
     <span class="mob-drop-icon">💡</span> Tax Savings
   </div>
   <div class="mob-drop-item" id="mbooks" onclick="mobNav('bookkeeping','mbooks')">
-    <span class="mob-drop-icon">📒</span> Bookkeeping
-  </div>
-  <div class="mob-drop-item" id="mexpenses" onclick="mobNav('expenses','mexpenses')">
-    <span class="mob-drop-icon">🧾</span> Expenses
+    <span class="mob-drop-icon">📒</span> Business Books
   </div>
   <div class="mob-drop-item" id="mdep" onclick="mobNav('depreciation','mdep')">
     <span class="mob-drop-icon">📉</span> Depreciation
   </div>
 
-  <div class="mob-drop-section">Ohio Tools</div>
-  <div class="mob-drop-item" id="mohio" onclick="mobNav('ohiotax','mohio')">
-    <span class="mob-drop-icon">🏔️</span> Ohio Tax Tools
-  </div>
-
   <div class="mob-drop-section">Planning</div>
   <div class="mob-drop-item" id="mest" onclick="mobNav('estimated','mest')">
     <span class="mob-drop-icon">📅</span> Est. Tax Payments
-  </div>
-  <div class="mob-drop-item" id="mdeadlines" onclick="mobNav('deadlines','mdeadlines')">
-    <span class="mob-drop-icon">⏰</span> Deadlines
   </div>
 
   <div class="mob-drop-section">Account</div>
