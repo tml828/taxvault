@@ -1871,7 +1871,13 @@
       <div class="page-header">
         <div>
           <div class="page-title">Mileage Log</div>
-          <div class="page-subtitle">Track business miles for Schedule C — IRS standard rate <span id="mileageRateLabel">67¢/mile</span></div>
+          <div class="page-subtitle" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            IRS standard rate:
+            <span style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="number" id="mileageRateInput" step="0.001" min="0.01" style="width:70px;padding:3px 8px;font-size:13px;background:rgba(0,200,232,0.1);border:1px solid rgba(0,200,232,0.3);border-radius:7px;color:var(--accent);font-weight:600;text-align:center;" onchange="setMileageRate(this.value)">
+              <span style="font-size:13px;color:var(--text2);">¢/mile — edit to change</span>
+            </span>
+          </div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="addMileageEntry()">+ Add Trip</button>
       </div>
@@ -4387,10 +4393,20 @@ function isChecked(id) {
 
 // ── MILEAGE LOG ─────────────────────────────────────────────
 
-const IRS_MILEAGE_RATES = { '2023': 0.655, '2024': 0.67, '2025': 0.70, '2026': 0.70 };
+const IRS_MILEAGE_RATES = { '2023': 0.655, '2024': 0.67, '2025': 0.70, '2026': 0.725 };
 
 function getMileageRate() {
+  const stored = getStore('tv_mileageRate_' + APP.taxYear, null);
+  if (stored !== null) return parseFloat(stored);
   return IRS_MILEAGE_RATES[APP.taxYear] || 0.67;
+}
+
+function setMileageRate(val) {
+  const rate = parseFloat(val);
+  if (!isNaN(rate) && rate > 0) {
+    setStore('tv_mileageRate_' + APP.taxYear, rate);
+    renderMileagePage();
+  }
 }
 
 function renderMileagePage() {
@@ -4399,8 +4415,8 @@ function renderMileagePage() {
   const rate = getMileageRate();
 
   // Update rate label
-  const rl = document.getElementById('mileageRateLabel');
-  if (rl) rl.textContent = (rate * 100).toFixed(0) + '¢/mile (' + APP.taxYear + ')';
+  const ri = document.getElementById('mileageRateInput');
+  if (ri) ri.value = (rate * 100).toFixed(1);
 
   // Populate biz filter
   const bizFilter = document.getElementById('mileageBizFilter');
