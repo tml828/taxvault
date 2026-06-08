@@ -1238,6 +1238,9 @@
     <div class="nav-item" data-page="depreciation" onclick="showPage('depreciation')">
       <span class="nav-icon">📉</span> Depreciation
     </div>
+    <div class="nav-item" data-page="mileage" onclick="showPage('mileage')">
+      <span class="nav-icon">🚗</span> Mileage Log
+    </div>
 
     <div class="nav-section">Planning</div>
     <div class="nav-item" data-page="estimated" onclick="showPage('estimated')">
@@ -1863,6 +1866,50 @@
       </div>
     </div>
 
+    <!-- ===== MILEAGE LOG ===== -->
+    <div id="page-mileage" class="page-content" style="display:none;">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Mileage Log</div>
+          <div class="page-subtitle">Track business miles for Schedule C — IRS standard rate <span id="mileageRateLabel">67¢/mile</span></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addMileageEntry()">+ Add Trip</button>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="grid-4" style="margin-bottom:20px;" id="mileageSummaryCards">
+        <div class="stat-card blue"><div class="stat-label">Total Miles</div><div class="stat-value" id="mileageTotalMiles">0</div></div>
+        <div class="stat-card green"><div class="stat-label">Deductible Miles</div><div class="stat-value" id="mileageDeductMiles">0</div></div>
+        <div class="stat-card warn"><div class="stat-label">Est. Deduction</div><div class="stat-value" id="mileageDeduction">$0</div></div>
+        <div class="stat-card purple"><div class="stat-label">Trips Logged</div><div class="stat-value" id="mileageTripCount">0</div></div>
+      </div>
+
+      <!-- Per-business breakdown -->
+      <div class="grid-2" style="margin-bottom:20px;">
+        <div class="glass panel" id="mileageBiz1Card" style="display:none;">
+          <div class="panel-title" id="mileageBiz1Title">Business 1</div>
+          <div style="font-size:24px;font-weight:700;color:var(--accent);" id="mileageBiz1Miles">0 mi</div>
+          <div style="font-size:13px;color:var(--accent3);margin-top:4px;" id="mileageBiz1Ded">$0 deduction</div>
+        </div>
+        <div class="glass panel" id="mileageBiz2Card" style="display:none;">
+          <div class="panel-title" id="mileageBiz2Title">Business 2</div>
+          <div style="font-size:24px;font-weight:700;color:var(--accent);" id="mileageBiz2Miles">0 mi</div>
+          <div style="font-size:13px;color:var(--accent3);margin-top:4px;" id="mileageBiz2Ded">$0 deduction</div>
+        </div>
+      </div>
+
+      <!-- Trip list -->
+      <div class="glass panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="panel-title" style="margin:0;">🗺️ Trip Log</div>
+          <select id="mileageBizFilter" onchange="renderMileagePage()" style="font-size:12px;padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);">
+            <option value="all">All Businesses</option>
+          </select>
+        </div>
+        <div id="mileageList"></div>
+      </div>
+    </div>
+
     <!-- ===== ESTIMATED TAX PAYMENTS ===== -->
     <div id="page-estimated" class="page-content" style="display:none;">
       <div class="page-header">
@@ -2161,6 +2208,7 @@ function loadApp() {
     bookkeeping:   yd.bookkeeping  || [],
     expenses:      yd.expenses     || [],
     assets:        yd.assets       || [],
+    mileage:       yd.mileage      || [],
     estPayments:   yd.estPayments  || {},
     filingData:    yd.filingData   || {},
     savings:       yd.savings      || null,
@@ -2174,6 +2222,7 @@ function saveLocal() {
     bookkeeping: APP.bookkeeping,
     expenses:    APP.expenses,
     assets:      APP.assets,
+    mileage:     APP.mileage,
     estPayments: APP.estPayments,
     filingData:  APP.filingData,
     savings:     APP.savings,
@@ -2255,6 +2304,7 @@ async function loadFromCloud(pinHash) {
     APP.bookkeeping = cyd.bookkeeping || r.bookkeeping || APP.bookkeeping;
     APP.expenses    = cyd.expenses    || r.expenses    || APP.expenses;
     APP.assets      = cyd.assets      || r.assets      || APP.assets;
+    APP.mileage     = cyd.mileage     || r.mileage     || APP.mileage;
     APP.estPayments = cyd.estPayments || r.est_payments|| APP.estPayments;
     APP.filingData  = cyd.filingData  || r.filing_data || APP.filingData;
     APP.savings     = cyd.savings     || r.savings     || APP.savings;
@@ -2540,6 +2590,7 @@ function showPage(page) {
   if (page === 'filing')       { renderFiling(); renderOhioTaxPage(); }
   if (page === 'bookkeeping')  { renderBookkeepingPage(); renderExpensesPage(); }
   if (page === 'depreciation') renderDepreciationPage();
+  if (page === 'mileage')      renderMileagePage();
   if (page === 'estimated')    renderEstimatedPage();
   if (page === 'savings')      renderSavingsPage();
   if (page === 'questionnaire'){ loadQuestionnaireForm(); }
@@ -4333,6 +4384,134 @@ function isChecked(id) {
 }
 
 
+
+// ── MILEAGE LOG ─────────────────────────────────────────────
+
+const IRS_MILEAGE_RATES = { '2023': 0.655, '2024': 0.67, '2025': 0.70, '2026': 0.70 };
+
+function getMileageRate() {
+  return IRS_MILEAGE_RATES[APP.taxYear] || 0.67;
+}
+
+function renderMileagePage() {
+  if (!APP.mileage) APP.mileage = [];
+  const q = APP.questionnaire;
+  const rate = getMileageRate();
+
+  // Update rate label
+  const rl = document.getElementById('mileageRateLabel');
+  if (rl) rl.textContent = (rate * 100).toFixed(0) + '¢/mile (' + APP.taxYear + ')';
+
+  // Populate biz filter
+  const bizFilter = document.getElementById('mileageBizFilter');
+  const businesses = [];
+  if (q?.biz1_name) businesses.push({key:'biz1', name:q.biz1_name});
+  if (q?.biz2_name) businesses.push({key:'biz2', name:q.biz2_name});
+  if (bizFilter) {
+    const cur = bizFilter.value;
+    bizFilter.innerHTML = '<option value="all">All Businesses</option>' +
+      businesses.map(b => `<option value="${b.key}" ${cur===b.key?'selected':''}>${b.name}</option>`).join('');
+  }
+
+  const filterBiz = bizFilter?.value || 'all';
+  const entries = APP.mileage.filter(m => m.year === APP.taxYear);
+  const filtered = filterBiz === 'all' ? entries : entries.filter(m => m.bizKey === filterBiz);
+
+  // Summary
+  const totalMiles = entries.reduce((s,m) => s + parseFloat(m.miles||0), 0);
+  const deductMiles = entries.reduce((s,m) => s + parseFloat(m.miles||0), 0);
+  const deduction = Math.round(deductMiles * rate);
+  const el = id => document.getElementById(id);
+  if(el('mileageTotalMiles'))  el('mileageTotalMiles').textContent  = Math.round(totalMiles).toLocaleString();
+  if(el('mileageDeductMiles')) el('mileageDeductMiles').textContent = Math.round(deductMiles).toLocaleString();
+  if(el('mileageDeduction'))   el('mileageDeduction').textContent   = '$' + deduction.toLocaleString();
+  if(el('mileageTripCount'))   el('mileageTripCount').textContent   = entries.length;
+
+  // Per-biz breakdown
+  businesses.forEach((b, i) => {
+    const bizMiles = entries.filter(m=>m.bizKey===b.key).reduce((s,m)=>s+parseFloat(m.miles||0),0);
+    const card = el('mileageBiz'+(i+1)+'Card');
+    const title = el('mileageBiz'+(i+1)+'Title');
+    const milesEl = el('mileageBiz'+(i+1)+'Miles');
+    const dedEl = el('mileageBiz'+(i+1)+'Ded');
+    if (card) card.style.display = 'block';
+    if (title) title.textContent = b.name;
+    if (milesEl) milesEl.textContent = Math.round(bizMiles).toLocaleString() + ' mi';
+    if (dedEl) dedEl.textContent = '$' + Math.round(bizMiles * rate).toLocaleString() + ' deduction';
+  });
+
+  // Trip list
+  const list = document.getElementById('mileageList');
+  if (!list) return;
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🚗</div><div class="empty-title">No trips logged yet</div><div class="empty-sub">Click "+ Add Trip" to start tracking business miles</div></div>`;
+    return;
+  }
+
+  const sorted = [...filtered].sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  list.innerHTML = sorted.map(m => {
+    const bizName = m.bizKey==='biz1'?(q?.biz1_name||'Biz 1'):m.bizKey==='biz2'?(q?.biz2_name||'Biz 2'):'Personal';
+    const ded = (parseFloat(m.miles||0) * rate).toFixed(2);
+    return `<div class="glass panel" style="padding:16px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+        <div style="flex:1;min-width:200px;">
+          <input type="text" value="${m.purpose||''}" placeholder="Purpose (e.g. Client meeting, Supply run)"
+            style="width:100%;font-size:14px;font-weight:600;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text);padding:2px 0;"
+            onchange="updateMileage('${m.id}','purpose',this.value)" placeholder="Purpose">
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:20px;font-weight:700;color:var(--accent);">${parseFloat(m.miles||0).toLocaleString()} mi</div>
+          <div style="font-size:12px;color:var(--accent3);">$${ded} deduction</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;align-items:center;">
+        <input type="date" value="${m.date||''}" style="font-size:12px;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="updateMileage('${m.id}','date',this.value)">
+        <input type="text" value="${m.from||''}" placeholder="From" style="font-size:12px;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="updateMileage('${m.id}','from',this.value)">
+        <input type="text" value="${m.to||''}" placeholder="To" style="font-size:12px;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="updateMileage('${m.id}','to',this.value)">
+        <input type="number" value="${m.miles||''}" placeholder="Miles" min="0" step="0.1" style="font-size:12px;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="updateMileage('${m.id}','miles',this.value)">
+        <select style="font-size:12px;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="updateMileage('${m.id}','bizKey',this.value)">
+          ${businesses.map(b=>`<option value="${b.key}" ${m.bizKey===b.key?'selected':''}>${b.name}</option>`).join('')}
+        </select>
+        <button class="btn btn-danger btn-sm" onclick="deleteMileage('${m.id}')">🗑 Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addMileageEntry() {
+  if (!APP.mileage) APP.mileage = [];
+  const q = APP.questionnaire;
+  const today = new Date().toLocaleDateString('en-US');
+  APP.mileage.push({
+    id: 'mi_' + Date.now(),
+    year: APP.taxYear,
+    date: today,
+    purpose: '',
+    from: '',
+    to: '',
+    miles: 0,
+    bizKey: 'biz1',
+  });
+  saveApp();
+  renderMileagePage();
+  // Scroll to bottom of list so new entry is visible
+  setTimeout(() => {
+    const list = document.getElementById('mileageList');
+    if (list) list.lastElementChild?.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }, 100);
+}
+
+function deleteMileage(id) {
+  if (!confirm('Delete this trip?')) return;
+  APP.mileage = (APP.mileage||[]).filter(m => m.id !== id);
+  saveApp(); renderMileagePage();
+}
+
+function updateMileage(id, field, val) {
+  const m = (APP.mileage||[]).find(m => m.id === id);
+  if (m) { m[field] = field === 'miles' ? parseFloat(val)||0 : val; saveApp(); renderMileagePage(); }
+}
+
 // ── OHIO DISTRICTS DATA ──────────────────────────────────────
 
 const OHIO_DISTRICTS = {
@@ -4780,6 +4959,9 @@ document.addEventListener('click', e => {
   </div>
   <div class="mob-drop-item" id="mdep" onclick="mobNav('depreciation','mdep')">
     <span class="mob-drop-icon">📉</span> Depreciation
+  </div>
+  <div class="mob-drop-item" id="mmileage" onclick="mobNav('mileage','mmileage')">
+    <span class="mob-drop-icon">🚗</span> Mileage Log
   </div>
 
   <div class="mob-drop-section">Planning</div>
