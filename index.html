@@ -1314,18 +1314,19 @@
         </div>
       </div>
 
-      <div class="grid-2">
-        <!-- PERSONAL CHECKLIST -->
-        <div class="glass panel">
-          <div class="panel-title">👤 Personal & Filing</div>
-          <div id="dashChecklist"></div>
+      <!-- WORKFLOW GUIDE -->
+      <div class="glass panel" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="panel-title" style="margin:0;">📋 Filing Workflow</div>
+          <div id="workflowPct" style="font-size:13px;color:var(--accent3);font-weight:600;"></div>
         </div>
+        <div id="workflowSteps"></div>
+      </div>
 
-        <!-- BUSINESS CHECKLIST -->
-        <div class="glass panel">
-          <div class="panel-title">🏢 Business & Ohio</div>
-          <div id="dashChecklistBiz"></div>
-        </div>
+      <!-- LEGACY CHECKLISTS (hidden, kept for renderFiling compatibility) -->
+      <div style="display:none;">
+        <div id="dashChecklist"></div>
+        <div id="dashChecklistBiz"></div>
       </div>
 
       <!-- UPCOMING DEADLINES -->
@@ -4034,19 +4035,121 @@ function refreshDashboard() {
     { done: false,           label: 'Review FreeTaxUSA Data',      sub: 'Verify all numbers before filing' },
   ];
 
-  const cl = document.getElementById('dashChecklist');
-  if (cl) cl.innerHTML = personalChecks.map(item => `
-    <div class="checklist-item ${item.done?'done':''}">
-      <div class="checklist-icon">${item.done?'✅':'⭕'}</div>
-      <div class="checklist-text">${item.label}<small>${item.sub}</small></div>
-    </div>`).join('');
+  // ── WORKFLOW STEPS ──────────────────────────────────────────
+  const q2 = APP.questionnaire;
+  const hasBkData = (APP.bookkeeping||[]).filter(b=>b.year===APP.taxYear||!b.year).length>0;
+  const hasMileData = (APP.mileage||[]).filter(m=>m.year===APP.taxYear).length>0;
+  const ded = APP.deductions||{};
+  const hasQBI = !!(parseFloat(ded.qbi_biz1||0)||parseFloat(ded.qbi_biz2||0));
+  const hasHODed = !!(parseFloat(ded.ho_result||0));
+  const hasSEHI = !!(parseFloat(ded.sehi_you||0)||parseFloat(ded.sehi_spouse||0));
+  const biz1HO = q2?.biz1_homeoffice==='yes', biz2HO = q2?.biz2_homeoffice==='yes';
+  const hoNeeded = biz1HO||biz2HO;
+  const needsHO = hoNeeded ? hasHODed : true; // only required if they have home office
 
-  const clb = document.getElementById('dashChecklistBiz');
-  if (clb) clb.innerHTML = bizChecks.map(item => `
-    <div class="checklist-item ${item.done?'done':''}">
-      <div class="checklist-icon">${item.done?'✅':'⭕'}</div>
-      <div class="checklist-text">${item.label}<small>${item.sub}</small></div>
-    </div>`).join('');
+  const workflow = [
+    {
+      step: 1, page: 'settings', icon: '🔑',
+      label: 'Configure Settings',
+      sub: 'Add your Anthropic API key to enable AI analysis',
+      done: !!APP.apiKey,
+      required: true
+    },
+    {
+      step: 2, page: 'questionnaire', icon: '📝',
+      label: 'Complete Questionnaire',
+      sub: 'Your name, filing status, business names, Ohio district',
+      done: !!(q2?.name && q2?.filingStatus && q2?.ohioDistrict),
+      required: true
+    },
+    {
+      step: 3, page: 'documents', icon: '📄',
+      label: 'Upload Income Documents',
+      sub: 'W-2s, 1099s, K-1s — AI will extract the numbers',
+      done: analyzed.length > 0,
+      required: true
+    },
+    {
+      step: 4, page: 'bookkeeping', icon: '📊',
+      label: 'Import Business Bank Statements',
+      sub: 'Upload statements for each business — AI categorizes transactions',
+      done: hasBkData,
+      required: true
+    },
+    {
+      step: 5, page: 'mileage', icon: '🚗',
+      label: 'Log Business Mileage',
+      sub: 'Track trips by date, purpose, and miles',
+      done: hasMileData,
+      required: false
+    },
+    {
+      step: 6, page: 'deductions', icon: '🧮',
+      label: 'Calculate Deductions',
+      sub: needsHO
+        ? 'QBI (§199A), Home Office, SE Health Insurance'
+        : 'QBI deduction (§199A) + SE Health Insurance',
+      done: hasQBI && hasSEHI && (hoNeeded ? hasHODed : true),
+      required: true
+    },
+    {
+      step: 7, page: 'assets', icon: '🏗️',
+      label: 'Add Assets & Depreciation',
+      sub: 'Equipment, vehicles — Section 179 or MACRS',
+      done: (APP.assets||[]).length > 0,
+      required: false
+    },
+    {
+      step: 8, page: 'bookkeeping', icon: '🧾',
+      label: 'Review 1099-NEC Contractors',
+      sub: 'Confirm anyone paid $600+ has a 1099 filed by Jan 31',
+      done: (APP.contractors||[]).filter(c=>c.year===APP.taxYear&&parseFloat(c.paid||0)>=600&&!c.sent1099).length===0,
+      required: false
+    },
+    {
+      step: 9, page: 'filing', icon: '📑',
+      label: 'Review Ohio Taxes',
+      sub: 'OBID, SD-100 school district, RITA city tax',
+      done: !!(document.getElementById('obid_biz1')?.value || document.getElementById('sd_rate')?.value),
+      required: false
+    },
+    {
+      step: 10, page: 'filing', icon: '✅',
+      label: 'Final Check & File on FreeTaxUSA',
+      sub: 'All numbers organized — open FreeTaxUSA and enter exactly as shown',
+      done: false,
+      required: true
+    },
+  ];
+
+  const doneCount = workflow.filter(s=>s.done).length;
+  const pctW = Math.round((doneCount/workflow.length)*100);
+  const wpct = document.getElementById('workflowPct');
+  if (wpct) wpct.textContent = pctW+'% complete';
+
+  // find first not-done step
+  const currentStep = workflow.find(s=>!s.done)?.step || 10;
+
+  const ws = document.getElementById('workflowSteps');
+  if (ws) {
+    ws.innerHTML = workflow.map(s => {
+      const isCurrent = s.step === currentStep;
+      const isPast = s.done;
+      const statusColor = isPast ? 'var(--accent)' : isCurrent ? 'var(--warn)' : 'rgba(255,255,255,0.2)';
+      const numBg = isPast ? 'rgba(0,200,232,0.15)' : isCurrent ? 'rgba(255,193,7,0.15)' : 'rgba(255,255,255,0.05)';
+      const numColor = isPast ? 'var(--accent)' : isCurrent ? 'var(--warn)' : 'var(--text2)';
+      const badgeText = isPast ? '✓' : s.step;
+      return `<div onclick="showPage('${s.page}')" style="display:flex;align-items:center;gap:14px;padding:11px 14px;border-radius:12px;cursor:pointer;transition:background 0.15s;margin-bottom:4px;${isCurrent?'background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.18);':'border:1px solid transparent;'}" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='${isCurrent?'rgba(255,193,7,0.06)':'transparent'}'">
+        <div style="width:30px;height:30px;border-radius:50%;background:${numBg};border:1.5px solid ${statusColor};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${numColor};flex-shrink:0;">${badgeText}</div>
+        <div style="font-size:18px;flex-shrink:0;">${s.icon}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:${isCurrent?'700':'500'};color:${isPast?'var(--text2)':isCurrent?'#fff':'var(--text1)'};${isPast?'text-decoration:line-through;opacity:0.5;':''}">${s.label}${s.required&&!isPast?' <span style="font-size:10px;color:var(--danger);font-weight:400;">required</span>':''}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px;">${s.sub}</div>
+        </div>
+        <div style="font-size:12px;color:${statusColor};flex-shrink:0;">${isCurrent?'← now':isPast?'done':''}</div>
+      </div>`;
+    }).join('');
+  }
 
   renderDashDeadlines();
 }
