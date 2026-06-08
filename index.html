@@ -1624,7 +1624,10 @@
           <div class="page-title">FreeTaxUSA Prep</div>
           <div class="page-subtitle">All your numbers organized exactly for FreeTaxUSA entry</div>
         </div>
-        <button class="btn btn-primary" onclick="exportFilingPDF()">📥 Export PDF</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="exportCPAReport()">📋 CPA Report</button>
+          <button class="btn btn-primary" onclick="exportFilingPDF()">📥 Export PDF</button>
+        </div>
       </div>
 
       <!-- Completion -->
@@ -3791,6 +3794,164 @@ function renderFiling() {
 }
 
 function exportFilingPDF() { window.print(); toast('Use browser Print → Save as PDF','info'); }
+
+function exportCPAReport() {
+  const q = APP.questionnaire || {};
+  const yr = APP.taxYear;
+  const docs = APP.documents.filter(d => d.year===yr && d.status==='ready' && d.extracted);
+  const bkAll = (APP.bookkeeping||[]).filter(b => b.year===yr || !b.year);
+  const bkIncome  = bkAll.filter(b=>b.type==='Income').reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const bkExpense = bkAll.filter(b=>b.type==='Expense').reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const expenses  = (APP.expenses||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const mileTrips = (APP.mileage||[]).filter(m=>m.year===yr);
+  const totalMiles = mileTrips.reduce((s,m)=>s+parseFloat(m.miles||0),0);
+  const mileDeduction = totalMiles * getMileageRate();
+  const assets = APP.assets||[];
+  const contractors = (APP.contractors||[]).filter(c=>c.year===yr);
+  const d = APP.deductions||{};
+  const qbiDeduction = parseFloat(d.qbi_result||0);
+  const hoDeduction = parseFloat(d.ho_result||0);
+  const sehiDeduction = (parseFloat(d.sehi_you||0)+parseFloat(d.sehi_spouse||0));
+  const totalDocIncome = docs.reduce((s,doc)=>s+parseFloat(doc.extracted.totalIncome||0),0);
+  const totalDocFedWH = docs.reduce((s,doc)=>s+parseFloat(doc.extracted.federalWithheld||0),0);
+  const totalDocStateWH = docs.reduce((s,doc)=>s+parseFloat(doc.extracted.stateWithheld||0),0);
+  const estPayments = Object.values(APP.estPayments||{}).reduce((s,v)=>s+parseFloat(v||0),0);
+  const totalDeductions = bkExpense + expenses + mileDeduction + hoDeduction + sehiDeduction;
+  const netBusiness = bkIncome - bkExpense - expenses - mileDeduction - hoDeduction;
+  const qbiAmt = Math.max(0, netBusiness * 0.20);
+
+  const now = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const bizNames = [q.biz1_name||'Business 1', q.biz2_name||'Business 2'].filter((_,i)=>i===0?q.biz1_name:q.biz2_name);
+
+  const rows = (label, val, indent=false, bold=false) =>
+    `<tr style="${bold?'font-weight:700;':''}${indent?'color:#555;':''}">
+      <td style="padding:6px 12px;border-bottom:1px solid #eee;${indent?'padding-left:28px;':''}">${label}</td>
+      <td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">${val}</td>
+    </tr>`;
+  const fmt = n => '$'+Math.abs(parseFloat(n||0)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const section = title =>
+    `<tr style="background:#f0f4ff;"><td colspan="2" style="padding:8px 12px;font-weight:700;font-size:13px;color:#1a2a6c;letter-spacing:0.5px;">${title}</td></tr>`;
+
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>TaxVault CPA Report — ${yr}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #222; margin: 0; padding: 24px; background: #fff; }
+    h1 { font-size: 22px; margin: 0 0 4px; color: #1a2a6c; }
+    h2 { font-size: 15px; margin: 24px 0 8px; color: #1a2a6c; border-bottom: 2px solid #1a2a6c; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+    th { background: #1a2a6c; color: #fff; padding: 8px 12px; text-align: left; font-size: 12px; }
+    th:last-child { text-align: right; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1a2a6c; }
+    .meta { font-size: 12px; color: #666; }
+    .total-row td { background: #e8f0fe; font-weight: 700; }
+    .alert { background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; }
+    @media print { body { padding: 12px; } .no-print { display: none; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>TaxVault — CPA Tax Summary</h1>
+      <div class="meta">Tax Year: <strong>${yr}</strong> &nbsp;|&nbsp; Prepared: ${now}</div>
+      <div class="meta" style="margin-top:4px;">Taxpayer: <strong>${q.name||'—'}</strong>${q.filingStatus==='mfj'?` &amp; <strong>${q.spouseName||'Spouse'}</strong>`:''}</div>
+      <div class="meta">Filing Status: <strong>${({single:'Single',mfj:'Married Filing Jointly',mfs:'Married Filing Separately',hoh:'Head of Household'})[q.filingStatus]||q.filingStatus||'—'}</strong>${bizNames.length?' &nbsp;|&nbsp; Businesses: <strong>'+bizNames.join(', ')+'</strong>':''}</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#999;">CONFIDENTIAL<br>Generated by TaxVault</div>
+  </div>`;
+
+  // Documents section
+  if (docs.length > 0) {
+    html += `<h2>Income Documents</h2><table><thead><tr><th>Document</th><th>Payer</th><th>Owner</th><th style="text-align:right">Income</th><th style="text-align:right">Fed. Withheld</th><th style="text-align:right">State Withheld</th></tr></thead><tbody>`;
+    docs.forEach(doc => {
+      const e = doc.extracted;
+      html += `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;">${e.documentType||doc.category||'Document'}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;">${e.payer||'—'}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;">${ownerName(doc.owner)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">${e.totalIncome>0?fmt(e.totalIncome):'—'}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">${e.federalWithheld>0?fmt(e.federalWithheld):'—'}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">${e.stateWithheld>0?fmt(e.stateWithheld):'—'}</td></tr>`;
+    });
+    html += `<tr class="total-row"><td colspan="3" style="padding:6px 12px;border-top:2px solid #1a2a6c;">TOTALS</td><td style="padding:6px 12px;border-top:2px solid #1a2a6c;text-align:right;">${fmt(totalDocIncome)}</td><td style="padding:6px 12px;border-top:2px solid #1a2a6c;text-align:right;">${fmt(totalDocFedWH)}</td><td style="padding:6px 12px;border-top:2px solid #1a2a6c;text-align:right;">${fmt(totalDocStateWH)}</td></tr></tbody></table>`;
+  }
+
+  // Business P&L
+  html += `<h2>Business Profit &amp; Loss (Schedule C)</h2><table><thead><tr><th>Line Item</th><th style="text-align:right">Amount</th></tr></thead><tbody>`;
+  html += section('INCOME');
+  html += rows('Gross Business Income (Bookkeeping)', fmt(bkIncome));
+  html += section('DEDUCTIONS');
+  html += rows('Business Expenses (Bookkeeping)', fmt(bkExpense), true);
+  if (expenses > 0) html += rows('Additional Expenses', fmt(expenses), true);
+  if (mileDeduction > 0) html += rows(`Mileage (${totalMiles.toLocaleString()} mi × $${getMileageRate()})`, fmt(mileDeduction), true);
+  if (hoDeduction > 0) html += rows('Home Office (Form 8829)', fmt(hoDeduction), true);
+  html += `<tr class="total-row"><td style="padding:6px 12px;border-top:2px solid #1a2a6c;">Total Deductions</td><td style="padding:6px 12px;border-top:2px solid #1a2a6c;text-align:right;">${fmt(totalDeductions)}</td></tr>`;
+  html += `<tr class="total-row"><td style="padding:8px 12px;font-size:14px;">Net Business Income</td><td style="padding:8px 12px;text-align:right;font-size:14px;">${fmt(netBusiness)}</td></tr>`;
+  html += '</tbody></table>';
+
+  // Above-the-line deductions
+  html += `<h2>Above-the-Line Deductions</h2><table><thead><tr><th>Deduction</th><th style="text-align:right">Amount</th></tr></thead><tbody>`;
+  html += rows('SE Health Insurance (Form 1040 Line 17)', fmt(sehiDeduction));
+  if (qbiDeduction > 0) html += rows('QBI Deduction §199A (20% pass-through)', fmt(qbiDeduction));
+  if (assets.length > 0) {
+    const deprTotal = assets.reduce((s,a) => {
+      const life = 5; return s + (a.method?.includes('179') ? parseFloat(a.cost||0) : parseFloat(a.cost||0)/life);
+    }, 0);
+    if (deprTotal > 0) html += rows('Depreciation / Section 179', fmt(deprTotal));
+  }
+  html += '</tbody></table>';
+
+  // Estimated payments
+  if (estPayments > 0) {
+    html += `<h2>Estimated Tax Payments</h2><table><thead><tr><th>Quarter</th><th style="text-align:right">Amount</th></tr></thead><tbody>`;
+    ['q1','q2','q3','q4'].forEach(q => {
+      const v = parseFloat((APP.estPayments||{})[q]||0);
+      if (v > 0) html += rows({q1:'Q1 (Apr 15)',q2:'Q2 (Jun 15)',q3:'Q3 (Sep 15)',q4:'Q4 (Jan 15)'}[q], fmt(v));
+    });
+    html += rows('Total Estimated Payments', fmt(estPayments), false, true);
+    html += '</tbody></table>';
+  }
+
+  // Mileage log
+  if (mileTrips.length > 0) {
+    html += `<h2>Mileage Log</h2><table><thead><tr><th>Date</th><th>Business</th><th>Purpose</th><th style="text-align:right">Miles</th></tr></thead><tbody>`;
+    mileTrips.forEach(m => {
+      html += `<tr><td style="padding:5px 12px;border-bottom:1px solid #eee;">${m.date||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${ownerName(m.bizKey)||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${m.purpose||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;text-align:right;">${parseFloat(m.miles||0).toLocaleString()}</td></tr>`;
+    });
+    html += `<tr class="total-row"><td colspan="3" style="padding:6px 12px;border-top:2px solid #1a2a6c;">Total Miles</td><td style="padding:6px 12px;border-top:2px solid #1a2a6c;text-align:right;">${totalMiles.toLocaleString()}</td></tr></tbody></table>`;
+  }
+
+  // 1099-NEC contractors
+  if (contractors.length > 0) {
+    const need1099 = contractors.filter(c => parseFloat(c.paid||0) >= 600);
+    if (need1099.length > 0) {
+      html += `<div class="alert">⚠️ <strong>${need1099.length} contractor(s) paid $600+</strong> — 1099-NEC forms required by January 31.</div>`;
+    }
+    html += `<h2>1099-NEC Contractors</h2><table><thead><tr><th>Contractor</th><th>EIN/SSN</th><th>Service</th><th style="text-align:right">Paid</th><th>1099 Sent</th></tr></thead><tbody>`;
+    contractors.forEach(c => {
+      const flag = parseFloat(c.paid||0)>=600 && !c.sent1099;
+      html += `<tr${flag?' style="background:#fff3cd;"':''}><td style="padding:5px 12px;border-bottom:1px solid #eee;">${c.name||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${c.ein||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${c.service||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;text-align:right;">${fmt(c.paid)}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${c.sent1099?'✓ Yes':'— No'}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  // Assets
+  if (assets.length > 0) {
+    html += `<h2>Assets &amp; Depreciation</h2><table><thead><tr><th>Asset</th><th>Purchased</th><th>Method</th><th style="text-align:right">Cost</th><th style="text-align:right">Year Deduction</th></tr></thead><tbody>`;
+    assets.forEach(a => {
+      const depr = a.method?.includes('179') ? parseFloat(a.cost||0) : parseFloat(a.cost||0)/5;
+      html += `<tr><td style="padding:5px 12px;border-bottom:1px solid #eee;">${a.name||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${a.purchaseDate||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${a.method||'5-yr MACRS'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;text-align:right;">${fmt(a.cost)}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;text-align:right;">${fmt(depr)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  // Ohio
+  html += `<h2>Ohio State &amp; Local Tax Notes</h2><table><thead><tr><th>Item</th><th style="text-align:right">Value</th></tr></thead><tbody>`;
+  html += rows('School District', q.ohioDistrict||'—');
+  html += rows('City / RITA Municipality', (document.getElementById('rita_city')||{}).value||'—');
+  html += '</tbody></table>';
+
+  html += `<div style="margin-top:32px;font-size:11px;color:#999;border-top:1px solid #ddd;padding-top:12px;">This report was generated by TaxVault on ${now}. All figures are self-reported and unaudited. Verify all amounts before filing.</div>`;
+  html += '</body></html>';
+
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `TaxVault_CPA_Report_${yr}.html`; a.click();
+  URL.revokeObjectURL(url);
+  toast('CPA report downloaded — open it and print to PDF','success');
+}
 
 function ownerName(owner) {
   const q = APP.questionnaire;
