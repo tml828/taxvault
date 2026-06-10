@@ -2098,6 +2098,13 @@
         </div>
         <button class="btn btn-primary" style="width:auto;" onclick="saveSupabaseConfig()">Save & Connect</button>
         <div id="sbStatus" style="margin-top:10px;font-size:13px;"></div>
+        <div class="settings-row" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">
+          <div>
+            <div class="settings-row-label">🔐 Cloud Account</div>
+            <div class="settings-row-sub" id="authStatusSub">Not signed in — cloud data is only protected by your PIN</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="authActionBtn" onclick="showAuthModal()">Sign In</button>
+        </div>
       </div>
 
       <div class="glass panel">
@@ -2198,6 +2205,25 @@
       <button class="btn btn-danger btn-sm" onclick="deleteDoc(currentDocId)">🗑 Delete</button>
       <button class="btn btn-secondary" onclick="closeDocModal()">Close</button>
       <button class="btn btn-primary" onclick="saveDocEdit()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLOUD ACCOUNT MODAL -->
+<div id="authModal" style="display:none;" class="modal-overlay">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-title">🔐 Secure Your Cloud Data</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">
+      Sign in <strong>once per device</strong> — after that you keep using your PIN like always.
+      This locks your cloud data to your account so only you can access it.
+    </div>
+    <div class="field"><label>Email</label><input type="email" id="authEmail" placeholder="you@email.com" autocomplete="email"></div>
+    <div class="field"><label>Password</label><input type="password" id="authPassword" placeholder="At least 8 characters" autocomplete="current-password" onkeydown="if(event.key==='Enter') authSignIn()"></div>
+    <div id="authStatus" style="margin:10px 0;font-size:13px;min-height:18px;"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="authSkip()">Skip for now</button>
+      <button class="btn btn-secondary" onclick="authSignUp()">Create Account</button>
+      <button class="btn btn-primary" onclick="authSignIn()">Sign In</button>
     </div>
   </div>
 </div>
@@ -2324,19 +2350,163 @@ async function hashPin(pin) {
 function getSbUrl() { return getStore('tv_sb_url','') || SB_URL; }
 function getSbKey() { return getStore('tv_sb_key','') || SB_KEY; }
 
-async function sbFetch(path, method = 'GET', body = null) {
+async function sbFetch(path, method = 'GET', body = null, accessToken = null) {
   const url = getSbUrl(), key = getSbKey();
   if (!url || !key) throw new Error('Supabase not configured');
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'apikey': key,
-    'Authorization': 'Bearer ' + key,
+    // With a user access token, PostgREST evaluates RLS as that user
+    'Authorization': 'Bearer ' + (accessToken || key),
   };
   if (method === 'POST') headers['Prefer'] = 'resolution=merge-duplicates,return=minimal';
   const res = await fetch(url + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()).slice(0, 120));
   return method === 'GET' ? res.json() : null;
+}
+
+// ── SUPABASE AUTH (email/password — once per device; PIN stays the daily unlock) ──
+const USER_TABLE = '/rest/v1/taxvault_user_data';
+let _userTableMissing = false; // set when the setup SQL hasn't been run yet → legacy fallback
+
+function getSession() { return getStore('tv_sb_session', null); }
+
+async function sbAuth(path, body) {
+  const res = await fetch(getSbUrl() + '/auth/v1/' + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': getSbKey() },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error_description || data.msg || data.error?.message || 'Auth error ' + res.status);
+  return data;
+}
+
+function storeSessionFromAuth(data) {
+  if (!data.access_token) return null;
+  const s = {
+    access_token:  data.access_token,
+    refresh_token: data.refresh_token,
+    // refresh 60s before actual expiry to avoid racing the deadline
+    expires_at:    Date.now() + ((data.expires_in || 3600) - 60) * 1000,
+    user_id:       data.user?.id,
+    email:         data.user?.email,
+  };
+  setStore('tv_sb_session', s);
+  updateAccountUI();
+  return s;
+}
+
+async function getValidSession() {
+  const s = getSession();
+  if (!s) return null;
+  if (Date.now() < (s.expires_at || 0)) return s;
+  try {
+    const data = await sbAuth('token?grant_type=refresh_token', { refresh_token: s.refresh_token });
+    return storeSessionFromAuth(data);
+  } catch(e) {
+    console.warn('Session refresh failed — signed out:', e);
+    localStorage.removeItem('tv_sb_session');
+    updateAccountUI();
+    return null;
+  }
+}
+
+function isUserTableError(e) {
+  return /HTTP 404|relation .* does not exist|42P01|PGRST205/i.test(e.message || '');
+}
+
+// Read this user's cloud row — account table first, legacy pin_hash row as fallback
+async function cloudReadRow(select = '*') {
+  const s = _userTableMissing ? null : await getValidSession();
+  if (s) {
+    try {
+      const rows = await sbFetch(USER_TABLE + '?user_id=eq.' + s.user_id + '&select=' + select, 'GET', null, s.access_token);
+      if (rows?.length) return rows[0];
+      return null; // signed in but no row yet — caller may migrate
+    } catch(e) {
+      if (isUserTableError(e)) { _userTableMissing = true; }
+      else throw e;
+    }
+  }
+  const hash = APP.pinHash || getStore('tv_pinHash', '');
+  if (!hash) return null;
+  const rows = await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(hash) + '&select=' + select);
+  return rows?.length ? rows[0] : null;
+}
+
+// ── AUTH UI ──────────────────────────────────────────────────
+function showAuthModal() {
+  const m = document.getElementById('authModal');
+  if (m) m.style.display = 'flex';
+  setStatus('authStatus', '', '');
+}
+function closeAuthModal() {
+  const m = document.getElementById('authModal');
+  if (m) m.style.display = 'none';
+}
+function authSkip() {
+  setStore('tv_authPromptDismissed', true);
+  closeAuthModal();
+}
+
+async function _authThen(data, verb) {
+  const s = storeSessionFromAuth(data);
+  if (!s) {
+    setStatus('authStatus', '📧 Check your email to confirm your account, then come back and Sign In', 'success');
+    return;
+  }
+  closeAuthModal();
+  toast('✅ ' + verb + ' as ' + s.email, 'success');
+  setSyncStatus('Syncing...');
+  try {
+    await loadFromCloud(APP.pinHash);   // triggers legacy → account migration if needed
+    await saveToCloud();
+    renderDocuments(); renderBookkeepingPage(); refreshDashboard();
+  } catch(e) { console.warn('Post-auth sync failed:', e); }
+}
+
+async function authSignIn() {
+  const email = document.getElementById('authEmail')?.value?.trim();
+  const password = document.getElementById('authPassword')?.value;
+  if (!email || !password) { setStatus('authStatus', 'Enter email and password', 'error'); return; }
+  setStatus('authStatus', 'Signing in...', '');
+  try {
+    const data = await sbAuth('token?grant_type=password', { email, password });
+    await _authThen(data, 'Signed in');
+  } catch(e) { setStatus('authStatus', '❌ ' + e.message, 'error'); }
+}
+
+async function authSignUp() {
+  const email = document.getElementById('authEmail')?.value?.trim();
+  const password = document.getElementById('authPassword')?.value;
+  if (!email || !password) { setStatus('authStatus', 'Enter email and password', 'error'); return; }
+  if (password.length < 8) { setStatus('authStatus', 'Password must be at least 8 characters', 'error'); return; }
+  setStatus('authStatus', 'Creating account...', '');
+  try {
+    const data = await sbAuth('signup', { email, password });
+    await _authThen(data, 'Account created');
+  } catch(e) { setStatus('authStatus', '❌ ' + e.message, 'error'); }
+}
+
+function authSignOut() {
+  localStorage.removeItem('tv_sb_session');
+  updateAccountUI();
+  toast('Signed out — sync falls back to PIN-keyed storage', 'info');
+}
+
+function updateAccountUI() {
+  const sub = document.getElementById('authStatusSub');
+  const btn = document.getElementById('authActionBtn');
+  const s = getSession();
+  if (sub) sub.textContent = s
+    ? 'Signed in as ' + s.email + ' — cloud data is locked to your account'
+    : 'Not signed in — cloud data is only protected by your PIN';
+  if (btn) {
+    btn.textContent = s ? 'Sign Out' : 'Sign In';
+    btn.onclick = s ? authSignOut : showAuthModal;
+  }
 }
 
 // ── LOAD & SAVE ───────────────────────────────────────────────
@@ -2415,17 +2585,30 @@ async function saveToCloud() {
     };
     const existing = getStore('tv_cloudYearData', {});
     existing[yk] = yearPayload;
-    await sbFetch('/rest/v1/taxvault_data', 'POST', {
-      pin_hash:        pinHash,
+    const row = {
       questionnaire:   APP.questionnaire,
       tax_year:        APP.taxYear,
       owner_name:      APP.ownerName,
       deleted_doc_ids: APP.deletedDocIds || [],
       year_data:       existing,
       updated_at:      new Date().toISOString()
-    });
+    };
+    const s = _userTableMissing ? null : await getValidSession();
+    let savedToAccount = false;
+    if (s) {
+      try {
+        await sbFetch(USER_TABLE, 'POST', { ...row, user_id: s.user_id }, s.access_token);
+        savedToAccount = true;
+      } catch(e) {
+        if (isUserTableError(e)) { _userTableMissing = true; }
+        else throw e;
+      }
+    }
+    if (!savedToAccount) {
+      await sbFetch('/rest/v1/taxvault_data', 'POST', { ...row, pin_hash: pinHash });
+    }
     setStore('tv_cloudYearData', existing);
-    setSyncStatus('✓ Saved · ' + new Date().toLocaleTimeString());
+    setSyncStatus('✓ Saved' + (savedToAccount ? ' 🔒' : '') + ' · ' + new Date().toLocaleTimeString());
   } catch(e) {
     setSyncStatus('Save failed');
     toast('❌ Save error: ' + e.message, 'error');
@@ -2437,9 +2620,43 @@ async function loadFromCloud(pinHash) {
   const hash = pinHash || APP.pinHash || getStore('tv_pinHash', '');
   if (!url || !key || !hash) return;
   try {
-    const rows = await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(hash) + '&select=*');
-    if (!rows?.length) { setSyncStatus('No cloud data'); return; }
-    const r = rows[0];
+    let r = null;
+    const s = _userTableMissing ? null : await getValidSession();
+    if (s) {
+      try {
+        const rows = await sbFetch(USER_TABLE + '?user_id=eq.' + s.user_id + '&select=*', 'GET', null, s.access_token);
+        r = rows?.[0] || null;
+        if (!r) {
+          // First signed-in load: migrate the legacy pin_hash row into the account.
+          // The legacy row is intentionally left in place as a fallback until the
+          // user locks the old table down (setup checklist step 3).
+          const legacy = await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(hash) + '&select=*');
+          if (legacy?.length) {
+            r = legacy[0];
+            await sbFetch(USER_TABLE, 'POST', {
+              user_id:         s.user_id,
+              questionnaire:   r.questionnaire,
+              tax_year:        r.tax_year,
+              owner_name:      r.owner_name,
+              deleted_doc_ids: r.deleted_doc_ids || [],
+              year_data:       r.year_data || {},
+              updated_at:      new Date().toISOString()
+            }, s.access_token);
+            toast('✅ Cloud data migrated to your account', 'success');
+          }
+        }
+      } catch(e) {
+        if (isUserTableError(e)) {
+          _userTableMissing = true;
+          toast('⚠️ Account table not set up yet — run the setup SQL in Supabase (using PIN sync for now)', 'warn');
+        } else throw e;
+      }
+    }
+    if (!r) {
+      const rows = await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(hash) + '&select=*');
+      if (!rows?.length) { setSyncStatus('No cloud data'); return; }
+      r = rows[0];
+    }
     if (r.year_data) setStore('tv_cloudYearData', r.year_data);
     const yk = 'y' + APP.taxYear;
     const cyd = r.year_data?.[yk] || {};
@@ -2490,9 +2707,8 @@ function startBackgroundSync() {
     const hash = APP.pinHash || getStore('tv_pinHash', '');
     if (!url || !key || !hash) return;
     try {
-      const rows = await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(hash) + '&select=updated_at,documents,bookkeeping,deleted_doc_ids,year_data');
-      if (!rows?.length) return;
-      const r = rows[0];
+      const r = await cloudReadRow('updated_at,deleted_doc_ids,year_data');
+      if (!r) return;
       const yk = 'y' + APP.taxYear;
       const cyd = r.year_data?.[yk] || {};
       if (r.year_data) setStore('tv_cloudYearData', r.year_data);
@@ -2656,7 +2872,11 @@ async function tryLogin() {
         toast('⚠️ You are using the default PIN — set your own now', 'warn');
         showChangePIN();
       }, 800);
+    } else if (getSbUrl() && getSbKey() && !getSession() && !getStore('tv_authPromptDismissed', false)) {
+      // Nudge toward a real account so cloud data isn't guarded by a 4-digit PIN alone
+      setTimeout(showAuthModal, 800);
     }
+    updateAccountUI();
   } else {
     for (let i = 0; i < attempt.length && i < 6; i++) {
       const d = document.getElementById('dot' + i);
@@ -2779,6 +2999,7 @@ function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display  = 'flex';
   loadCustomLogo();
+  updateAccountUI();
   refreshSidebarUser();
   populateYearSelects();
   checkQuestionnaireBanner();
@@ -5601,15 +5822,19 @@ async function clearAllData() {
   if (!confirm('This will permanently delete ALL your tax data — every year, local and cloud. This cannot be undone. Are you sure?')) return;
   if (!confirm('Are you absolutely sure? All documents, bookkeeping, mileage, deductions, and questionnaire data will be lost.')) return;
   if (bgSyncInterval) { clearInterval(bgSyncInterval); bgSyncInterval = null; }
-  // Delete the cloud row first so background sync on another device can't resurrect it
+  // Delete the cloud rows first so background sync on another device can't resurrect them
   try {
+    const s = await getValidSession();
+    if (s) await sbFetch(USER_TABLE + '?user_id=eq.' + s.user_id, 'DELETE', null, s.access_token);
     const hash = APP.pinHash || getStore('tv_pinHash', '');
     if (hash) await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(hash), 'DELETE');
   } catch(e) { toast('⚠️ Could not delete cloud copy: ' + e.message, 'warn'); }
-  // Remove every TaxVault localStorage key (all years), keeping only the PIN
+  // Remove every TaxVault localStorage key (all years), keeping only the PIN and session
   const keepPin = getStore('tv_pinHash', null);
+  const keepSession = getStore('tv_sb_session', null);
   Object.keys(localStorage).filter(k => k.startsWith('tv_')).forEach(k => localStorage.removeItem(k));
   if (keepPin) setStore('tv_pinHash', keepPin);
+  if (keepSession) setStore('tv_sb_session', keepSession);
   loadApp();
   startBackgroundSync();
   toast('All data cleared', 'info');
