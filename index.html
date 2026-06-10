@@ -2213,8 +2213,8 @@
         <div class="pin-dot" id="cpd1_1"></div>
         <div class="pin-dot" id="cpd1_2"></div>
         <div class="pin-dot" id="cpd1_3"></div>
-        <div class="pin-dot" id="cpd1_4"></div>
-        <div class="pin-dot" id="cpd1_5"></div>
+        <div class="pin-dot" id="cpd1_4" style="display:none;"></div>
+        <div class="pin-dot" id="cpd1_5" style="display:none;"></div>
       </div>
       <div class="pin-pad" style="max-width:260px;margin:0 auto;">
         <div class="pin-key" onclick="cpPress1('1')">1</div><div class="pin-key" onclick="cpPress1('2')">2</div><div class="pin-key" onclick="cpPress1('3')">3</div>
@@ -2232,8 +2232,8 @@
         <div class="pin-dot" id="cpd2_1"></div>
         <div class="pin-dot" id="cpd2_2"></div>
         <div class="pin-dot" id="cpd2_3"></div>
-        <div class="pin-dot" id="cpd2_4"></div>
-        <div class="pin-dot" id="cpd2_5"></div>
+        <div class="pin-dot" id="cpd2_4" style="display:none;"></div>
+        <div class="pin-dot" id="cpd2_5" style="display:none;"></div>
       </div>
       <div class="pin-pad" style="max-width:260px;margin:0 auto;">
         <div class="pin-key" onclick="cpPress2('1')">1</div><div class="pin-key" onclick="cpPress2('2')">2</div><div class="pin-key" onclick="cpPress2('3')">3</div>
@@ -2287,10 +2287,31 @@ function getStore(key, def = null) {
     const v = localStorage.getItem(key);
     if (v === null) return def;
     return JSON.parse(v);
-  } catch { return def; }
+  } catch(e) {
+    console.error('Corrupted localStorage value for ' + key + ' — using default:', e);
+    return def;
+  }
 }
+let _storeFailWarned = false;
 function setStore(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  try { localStorage.setItem(key, JSON.stringify(val)); }
+  catch(e) {
+    // Quota exceeded or storage disabled — without this warning, "saves" silently vanish
+    if (!_storeFailWarned) {
+      _storeFailWarned = true;
+      setTimeout(() => { _storeFailWarned = false; }, 30000);
+      if (typeof toast === 'function') toast('⚠️ Local save failed (storage full?) — data may not persist', 'error');
+    }
+    console.error('localStorage write failed for ' + key + ':', e);
+  }
+}
+
+// ── HTML ESCAPE ──────────────────────────────────────────────
+// For any string that came from a file name, user input, or AI output
+// before it goes into innerHTML / an attribute value
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 }
 
 // ── HASH ─────────────────────────────────────────────────────
@@ -2343,6 +2364,8 @@ function loadApp() {
 }
 
 function saveLocal() {
+  APP.dataSavedAt = Date.now();
+  setStore('tv_dataSavedAt', APP.dataSavedAt);
   const yk = 'y' + APP.taxYear;
   setStore('tv_yearData_' + yk, {
     documents:   APP.documents,
@@ -2383,6 +2406,9 @@ async function saveToCloud() {
       bookkeeping: APP.bookkeeping,
       expenses:    APP.expenses,
       assets:      APP.assets,
+      mileage:     APP.mileage,
+      deductions:  APP.deductions,
+      contractors: APP.contractors,
       estPayments: APP.estPayments,
       filingData:  APP.filingData,
       savings:     APP.savings,
@@ -2430,15 +2456,23 @@ async function loadFromCloud(pinHash) {
       else merged.push(cd);
     });
     APP.documents   = merged.filter(d => !deletedIds.has(d.id));
-    APP.bookkeeping = cyd.bookkeeping || r.bookkeeping || APP.bookkeeping;
-    APP.expenses    = cyd.expenses    || r.expenses    || APP.expenses;
-    APP.assets      = cyd.assets      || r.assets      || APP.assets;
-    APP.mileage     = cyd.mileage     || r.mileage     || APP.mileage;
+    // Only adopt a cloud array if it actually has data — an empty cloud array
+    // (e.g. from a freshly set-up second device) must never wipe local entries
+    const pick = (cloud, legacy, local) =>
+      (Array.isArray(cloud) && cloud.length) ? cloud :
+      (Array.isArray(legacy) && legacy.length) ? legacy : local;
+    APP.bookkeeping = pick(cyd.bookkeeping, r.bookkeeping, APP.bookkeeping);
+    APP.expenses    = pick(cyd.expenses,    r.expenses,    APP.expenses);
+    APP.assets      = pick(cyd.assets,      r.assets,      APP.assets);
+    APP.mileage     = pick(cyd.mileage,     r.mileage,     APP.mileage);
+    APP.contractors = pick(cyd.contractors, null,          APP.contractors);
+    if (cyd.deductions && Object.keys(cyd.deductions).length) APP.deductions = cyd.deductions;
     APP.estPayments = cyd.estPayments || r.est_payments|| APP.estPayments;
     APP.filingData  = cyd.filingData  || r.filing_data || APP.filingData;
     APP.savings     = cyd.savings     || r.savings     || APP.savings;
     if (r.questionnaire) APP.questionnaire = r.questionnaire;
-    if (r.tax_year)      APP.taxYear       = r.tax_year;
+    // Note: deliberately NOT adopting r.tax_year — the merged data above belongs to
+    // the locally selected year; switching years here would save it under the wrong key
     if (r.owner_name)    APP.ownerName     = r.owner_name;
     saveLocal();
     const n = APP.documents.length;
@@ -2478,18 +2512,19 @@ function startBackgroundSync() {
           else merged.push(cd);
         });
         APP.documents = merged.filter(d => !deletedIds.has(d.id));
-        // Only overwrite bookkeeping from cloud if questionnaire wasn't saved more recently locally
-        const localQSavedAt = APP.questionnaire?.savedAt || 0;
+        // Only overwrite from cloud if the cloud write is newer than ANY local save
+        // (tv_dataSavedAt is bumped on every saveLocal, not just questionnaire saves)
+        const localSavedAt = APP.dataSavedAt || getStore('tv_dataSavedAt', 0) || 0;
         const cloudUpdatedAt = r.updated_at ? new Date(r.updated_at).getTime() : 0;
-        if (cyd.bookkeeping && cloudUpdatedAt > localQSavedAt) APP.bookkeeping = cyd.bookkeeping;
-        if (cyd.expenses && cloudUpdatedAt > localQSavedAt) APP.expenses = cyd.expenses;
+        if (Array.isArray(cyd.bookkeeping) && cyd.bookkeeping.length && cloudUpdatedAt > localSavedAt) APP.bookkeeping = cyd.bookkeeping;
+        if (Array.isArray(cyd.expenses) && cyd.expenses.length && cloudUpdatedAt > localSavedAt) APP.expenses = cyd.expenses;
         saveLocal();
         renderDocuments();
         renderBookkeepingPage();
         refreshDashboard();
         setSyncStatus('✓ Updated · ' + new Date().toLocaleTimeString());
       }
-    } catch {}
+    } catch(e) { console.warn('Background sync error:', e); }
   }, 10000);
 }
 
@@ -2569,12 +2604,13 @@ function setStatus(id, msg, type) {
 }
 
 // ── PIN ───────────────────────────────────────────────────────
-function updatePinDots(prefix, state, count) {
+function updatePinDots(prefix, state, count, len) {
+  const filled = (len !== undefined) ? len : pinBuffer.length;
   for (let i = 0; i < count; i++) {
     const el = document.getElementById(prefix + i);
     if (!el) continue;
     el.classList.remove('filled', 'error');
-    if (i < pinBuffer.length) el.classList.add('filled');
+    if (i < filled) el.classList.add('filled');
     if (state === 'error') el.classList.add('error');
   }
 }
@@ -2605,11 +2641,22 @@ async function tryLogin() {
     showApp();
     try {
       await loadFromCloud(APP.pinHash);
-      renderDocuments();
-      renderBookkeepingPage();
-      refreshDashboard();
-    } catch {}
+    } catch(e) { console.warn('Cloud load failed:', e); }
+    // Clean stale references only AFTER cloud docs have merged, so entries
+    // pointing at cloud-only documents aren't wrongly purged
+    cleanStaleData();
+    renderDocuments();
+    renderBookkeepingPage();
+    refreshDashboard();
     startBackgroundSync();
+    // The default PIN's hash is public (it's in the source code) — anyone could
+    // pull this account's cloud data. Push the user to set their own.
+    if (APP.pinHash === DEFAULT_PIN_HASH) {
+      setTimeout(() => {
+        toast('⚠️ You are using the default PIN — set your own now', 'warn');
+        showChangePIN();
+      }, 800);
+    }
   } else {
     for (let i = 0; i < attempt.length && i < 6; i++) {
       const d = document.getElementById('dot' + i);
@@ -2621,36 +2668,86 @@ async function tryLogin() {
 }
 
 // ── CHANGE PIN SCREENS ────────────────────────────────────────
+// Three stages: verify current PIN → enter new PIN → confirm new PIN
+let _cpStage = 'verify', _cpBuf = '', _cpNewPin = '';
+
 function showChangePIN() {
-  document.getElementById('changePINModal').style.display = 'flex';
-  updatePinDots('cp1dot', '', 4);
-  updatePinDots('cp2dot', '', 4);
-  window._cp1 = ''; window._cp2 = '';
+  _cpStage = 'verify'; _cpBuf = ''; _cpNewPin = '';
+  document.getElementById('pwModal').style.display = 'flex';
+  document.getElementById('changePinStep1').style.display = 'block';
+  document.getElementById('changePinStep2').style.display = 'none';
+  document.getElementById('changePinStep2b').style.display = 'none';
+  updatePinDots('cpd1_', '', 6, 0);
+  updatePinDots('cpd2_', '', 6, 0);
+  setStatus('cpStatus1', 'Enter current PIN', '');
+  setStatus('cpStatus2', '', '');
 }
 function closePwModal() {
-  document.getElementById('changePINModal').style.display = 'none';
-  window._cp1 = ''; window._cp2 = '';
+  document.getElementById('pwModal').style.display = 'none';
+  _cpStage = 'verify'; _cpBuf = ''; _cpNewPin = '';
 }
-function cpPress1(v) { if ((window._cp1||'').length < 4) { window._cp1 = (window._cp1||'') + v; updatePinDots('cp1dot','',4); window._cp1.length === 4 && document.getElementById('cp2').style.display !== 'none' || (window._cp1.length === 4 && cpVerify1()); } }
-function cpDel1()  { window._cp1 = (window._cp1||'').slice(0,-1); updatePinDots('cp1dot','',4); }
-function cpPress2(v) { if ((window._cp2||'').length < 4) { window._cp2 = (window._cp2||'') + v; updatePinDots('cp2dot','',4); window._cp2.length === 4 && setTimeout(cpConfirm2, 120); } }
-function cpDel2()  { window._cp2 = (window._cp2||'').slice(0,-1); updatePinDots('cp2dot','',4); }
-function cpVerify1() {
-  document.getElementById('cp1').style.display = 'none';
-  document.getElementById('cp2').style.display = 'block';
+function cpPress1(v) {
+  if (_cpBuf.length >= 4) return;
+  _cpBuf += v;
+  updatePinDots('cpd1_', '', 6, _cpBuf.length);
+  if (_cpBuf.length === 4) setTimeout(cpVerifyCurrent, 120);
 }
-function cpHandleNewPin() { cpVerify1(); }
-async function cpConfirm1() { cpVerify1(); }
-async function cpConfirm2() {
-  if (window._cp1 === window._cp2) {
-    APP.pinHash = await hashPin(window._cp1);
-    saveApp();
+function cpDel1() { _cpBuf = _cpBuf.slice(0,-1); updatePinDots('cpd1_', '', 6, _cpBuf.length); }
+async function cpVerifyCurrent() {
+  const attempt = _cpBuf; _cpBuf = '';
+  const hash = await hashPin(attempt);
+  if (hash !== APP.pinHash) {
+    updatePinDots('cpd1_', 'error', 6, 4);
+    setStatus('cpStatus1', 'Wrong PIN — try again', 'error');
+    setTimeout(() => { updatePinDots('cpd1_', '', 6, 0); setStatus('cpStatus1', 'Enter current PIN', ''); }, 900);
+    return;
+  }
+  _cpStage = 'new';
+  document.getElementById('changePinStep1').style.display = 'none';
+  document.getElementById('changePinStep2').style.display = 'block';
+  updatePinDots('cpd1_', '', 6, 0);
+  setStatus('cpStatus2', 'Enter new PIN', '');
+}
+function cpPress2(v) {
+  if (_cpBuf.length >= 4) return;
+  _cpBuf += v;
+  updatePinDots('cpd2_', '', 6, _cpBuf.length);
+  if (_cpBuf.length === 4) setTimeout(cpHandleStep2, 120);
+}
+function cpDel2() { _cpBuf = _cpBuf.slice(0,-1); updatePinDots('cpd2_', '', 6, _cpBuf.length); }
+async function cpHandleStep2() {
+  if (_cpStage === 'new') {
+    _cpNewPin = _cpBuf; _cpBuf = '';
+    _cpStage = 'confirm';
+    document.getElementById('changePinStep2b').style.display = 'block';
+    updatePinDots('cpd2_', '', 6, 0);
+    setStatus('cpStatus2', 'Re-enter new PIN to confirm', '');
+    return;
+  }
+  // confirm stage
+  const confirmPin = _cpBuf; _cpBuf = '';
+  if (confirmPin === _cpNewPin) {
+    const oldHash = APP.pinHash;
+    APP.pinHash = await hashPin(_cpNewPin);
+    saveLocal();
+    // Move the cloud row to the new pin_hash key so cloud data isn't orphaned
+    try {
+      if (oldHash && oldHash !== APP.pinHash) {
+        await saveToCloud();
+        await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(oldHash), 'DELETE');
+      }
+    } catch(e) { console.warn('Cloud PIN migration failed:', e); }
     closePwModal();
     toast('PIN updated successfully!', 'success');
   } else {
-    toast('PINs do not match — try again', 'error');
-    window._cp2 = '';
-    updatePinDots('cp2dot','',4);
+    updatePinDots('cpd2_', 'error', 6, 4);
+    setStatus('cpStatus2', 'PINs do not match — start over', 'error');
+    _cpStage = 'new'; _cpNewPin = '';
+    setTimeout(() => {
+      updatePinDots('cpd2_', '', 6, 0);
+      document.getElementById('changePinStep2b').style.display = 'none';
+      setStatus('cpStatus2', 'Enter new PIN', '');
+    }, 900);
   }
 }
 
@@ -2681,7 +2778,6 @@ function showSetup() {
 function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display  = 'flex';
-  cleanStaleData();
   loadCustomLogo();
   refreshSidebarUser();
   populateYearSelects();
@@ -2776,6 +2872,9 @@ function setTaxYear(year) {
   APP.bookkeeping = yd.bookkeeping || [];
   APP.expenses    = yd.expenses    || [];
   APP.assets      = yd.assets      || [];
+  APP.mileage     = yd.mileage     || [];
+  APP.deductions  = yd.deductions  || {};
+  APP.contractors = yd.contractors || [];
   APP.estPayments = yd.estPayments || {};
   APP.filingData  = yd.filingData  || {};
   APP.savings     = yd.savings     || null;
@@ -2893,6 +2992,7 @@ function removeLogo() {
 // ── DOCUMENTS ──────────────────────────────────────────────
 
 function formatFileSize(bytes) {
+  if (bytes === 0) return '0 B';
   if (!bytes) return '?';
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -2969,7 +3069,12 @@ async function handleFiles(files) {
       category: 'Other', status: 'pending', owner: 'you',
       uploadedAt: Date.now(), extracted: null, notes: '', rawAI: '',
     };
-    try { doc.base64 = await fileToBase64(file); doc.mediaType = file.type; } catch(e) {}
+    try { doc.base64 = await fileToBase64(file); doc.mediaType = file.type; }
+    catch(e) {
+      doc.status = 'error';
+      doc.errorMsg = 'Could not read file — try re-uploading';
+      toast('❌ Could not read ' + file.name, 'error');
+    }
     APP.documents.push(doc);
     saveLocal(); // local only — don't push pending to cloud (avoids race with ready state)
     renderDocuments();
@@ -3027,6 +3132,7 @@ Return ONLY this JSON (no markdown):
   "recipient": "full exact recipient name",
   "autoAssignTo": "you|spouse|biz1|biz2",
   "totalIncome": 0,
+  "totalDeductions": 0,
   "federalWithheld": 0,
   "stateWithheld": 0,
   "socialSecurityWages": 0,
@@ -3049,8 +3155,9 @@ Return ONLY this JSON (no markdown):
     });
 
     if (!response.ok) {
-      const e = await response.json();
-      const msg = e.error?.message || '';
+      let msg = '';
+      try { const e = await response.json(); msg = e.error?.message || ''; }
+      catch { /* non-JSON error body (e.g. HTML from a 5xx) — fall through to status codes */ }
       if (response.status === 401) throw new Error('Invalid API key — check Settings');
       if (response.status === 429) throw new Error('Rate limit — try again in a moment');
       if (response.status === 402) throw new Error('API credits exhausted — add credits at console.anthropic.com');
@@ -3114,7 +3221,7 @@ Return ONLY this JSON (no markdown):
       if (!APP.assets) APP.assets = [];
       if (!APP.assets.some(a => a.docId === doc.id)) {
         APP.assets.push({
-          id: 'ast_' + Date.now(),
+          id: 'ast_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
           name: extracted.payer || 'Asset from ' + doc.name,
           business: extracted.autoAssignTo === 'biz1' ? (q?.biz1_name||'Business 1') : (q?.biz2_name||'Business 2'),
           purchaseDate: extracted.taxYear ? '01/' + extracted.taxYear : '',
@@ -3158,8 +3265,8 @@ function docItemHTML(doc) {
   return `<div class="doc-item" id="docrow_${doc.id}">
     <div class="doc-icon ${iconType}">${icon}</div>
     <div class="doc-info">
-      <div class="doc-name">${doc.name}</div>
-      <div class="doc-meta">${doc.category} · ${doc.year} · ${ownerName(doc.owner)} · ${formatFileSize(doc.size)}</div>
+      <div class="doc-name">${esc(doc.name)}</div>
+      <div class="doc-meta">${esc(doc.category)} · ${esc(doc.year)} · ${esc(ownerName(doc.owner))} · ${formatFileSize(doc.size)}</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
       ${statusBadge}
@@ -3239,7 +3346,7 @@ function openDocModal(docId) {
         </select>
       </div>
       <div class="field"><label>Notes</label>
-        <input type="text" value="${doc.notes||''}" placeholder="Optional" onchange="updateDocField('${docId}','notes',this.value)">
+        <input type="text" value="${esc(doc.notes||'')}" placeholder="Optional" onchange="updateDocField('${docId}','notes',this.value)">
       </div>
     </div>
 
@@ -3259,14 +3366,14 @@ function openDocModal(docId) {
       ].map(([lbl,fld,val,typ]) => (fld !== 'totalIncome' && fld !== 'payer' && (val===undefined||val===''||val===0))?'': `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
         <span style="font-size:13px;color:var(--text2);">${lbl}</span>
-        <input type="${typ}" value="${val}" style="width:160px;text-align:right;font-size:14px;font-weight:600;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);"
+        <input type="${typ}" value="${esc(val)}" style="width:160px;text-align:right;font-size:14px;font-weight:600;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);"
           onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"
           onchange="updateExtractedField('${docId}','${fld}',this.value)">
       </div>`).join('')}
     </div>` : `
     <div class="empty-state" style="padding:20px;">
       ${doc.status==='analyzing'?'⏳ Analyzing...':
-        doc.status==='error'?`<div style="color:var(--danger);margin-bottom:12px;">❌ ${doc.errorMsg}</div><button class="btn btn-secondary btn-sm" onclick="analyzeDocument('${docId}');closeDocModal()">🔄 Retry</button>`:
+        doc.status==='error'?`<div style="color:var(--danger);margin-bottom:12px;">❌ ${esc(doc.errorMsg)}</div><button class="btn btn-secondary btn-sm" onclick="analyzeDocument('${docId}');closeDocModal()">🔄 Retry</button>`:
         '⬜ Pending analysis'}
     </div>`}`;
 
@@ -3738,8 +3845,8 @@ function renderFiling() {
     <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:16px;margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
         <div>
-          <div style="font-size:14px;font-weight:600;">${entry.payer || docName}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${entry.docType} · ${ownerLabel} · ${APP.taxYear}</div>
+          <div style="font-size:14px;font-weight:600;">${esc(entry.payer || docName)}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${esc(entry.docType)} · ${esc(ownerLabel)} · ${APP.taxYear}</div>
         </div>
         <div style="text-align:right;">
           ${entry.totalIncome > 0 ? `<div style="font-size:18px;font-weight:700;color:var(--accent3);">$${parseFloat(entry.totalIncome).toLocaleString()}</div><div style="font-size:11px;color:var(--text2);">Income</div>` : ''}
@@ -3759,11 +3866,7 @@ function renderFiling() {
   const totalDeductions = schedCExpenses + bkExpenses;
 
   // Add depreciation deductions
-  const deprDeduction = (APP.assets||[]).reduce((s,a) => {
-    const age = new Date().getFullYear() - (parseInt((a.purchaseDate||'').split('/')[1]) || new Date().getFullYear());
-    const life = 5; const annual = parseFloat(a.cost||0) / life;
-    return s + (a.method?.includes('179') ? parseFloat(a.cost||0) : annual);
-  }, 0);
+  const deprDeduction = (APP.assets||[]).reduce((s,a) => s + assetDeductionForYear(a, APP.taxYear), 0);
 
   if (totalDeductions > 0 || deprDeduction > 0) {
     html += `
@@ -3775,10 +3878,13 @@ function renderFiling() {
     </div>`;
   }
 
-  // Totals
+  // Totals — SE tax applies only to net self-employment income, not W-2 wages
   const netIncome = totalIncome - totalDeductions - deprDeduction;
-  const seTax = Math.max(0, netIncome) * 0.9235 * 0.153;
-  const netOwed = Math.max(0, Math.round(netIncome * 0.22 + seTax - totalFed));
+  const bizNetSE = (APP.bookkeeping||[]).filter(b=>b.type==='Income').reduce((s,b)=>s+parseFloat(b.amount||0),0)
+                 - (APP.bookkeeping||[]).filter(b=>b.type==='Expense').reduce((s,b)=>s+parseFloat(b.amount||0),0)
+                 - deprDeduction;
+  const seTax = Math.max(0, bizNetSE) * 0.9235 * 0.153;
+  const netOwed = Math.max(0, Math.round(Math.max(0, netIncome) * 0.22 + seTax - totalFed));
 
   html += `
   <div style="background:rgba(0,200,232,0.06);border:1px solid rgba(0,200,232,0.2);border-radius:14px;padding:16px;margin-top:8px;">
@@ -3795,6 +3901,22 @@ function renderFiling() {
 }
 
 function exportFilingPDF() { window.print(); toast('Use browser Print → Save as PDF','info'); }
+
+// Deduction an asset contributes in a given tax year.
+// Section 179: full cost, purchase year ONLY. Straight-line: cost/life while within its life.
+function assetDeductionForYear(asset, taxYear) {
+  const cost = parseFloat(asset.cost || 0);
+  if (!cost) return 0;
+  const yr = parseInt(taxYear) || new Date().getFullYear() - 1;
+  // purchaseDate formats seen: "MM/YYYY", "MM/DD/YYYY", "YYYY" — year is the last 4-digit token
+  const yearMatch = String(asset.purchaseDate || '').match(/(20\d{2})/);
+  const purchaseYear = yearMatch ? parseInt(yearMatch[1]) : yr;
+  if (purchaseYear > yr) return 0; // not in service yet
+  if (asset.method?.includes('179')) return purchaseYear === yr ? cost : 0;
+  const life = 5;
+  const age = yr - purchaseYear; // 0 = first year
+  return age < life ? cost / life : 0;
+}
 
 function exportCPAReport() {
   const q = APP.questionnaire || {};
@@ -3886,9 +4008,7 @@ function exportCPAReport() {
   html += rows('SE Health Insurance (Form 1040 Line 17)', fmt(sehiDeduction));
   if (qbiDeduction > 0) html += rows('QBI Deduction §199A (20% pass-through)', fmt(qbiDeduction));
   if (assets.length > 0) {
-    const deprTotal = assets.reduce((s,a) => {
-      const life = 5; return s + (a.method?.includes('179') ? parseFloat(a.cost||0) : parseFloat(a.cost||0)/life);
-    }, 0);
+    const deprTotal = assets.reduce((s,a) => s + assetDeductionForYear(a, yr), 0);
     if (deprTotal > 0) html += rows('Depreciation / Section 179', fmt(deprTotal));
   }
   html += '</tbody></table>';
@@ -3931,7 +4051,7 @@ function exportCPAReport() {
   if (assets.length > 0) {
     html += `<h2>Assets &amp; Depreciation</h2><table><thead><tr><th>Asset</th><th>Purchased</th><th>Method</th><th style="text-align:right">Cost</th><th style="text-align:right">Year Deduction</th></tr></thead><tbody>`;
     assets.forEach(a => {
-      const depr = a.method?.includes('179') ? parseFloat(a.cost||0) : parseFloat(a.cost||0)/5;
+      const depr = assetDeductionForYear(a, yr);
       html += `<tr><td style="padding:5px 12px;border-bottom:1px solid #eee;">${a.name||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${a.purchaseDate||'—'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;">${a.method||'5-yr MACRS'}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;text-align:right;">${fmt(a.cost)}</td><td style="padding:5px 12px;border-bottom:1px solid #eee;text-align:right;">${fmt(depr)}</td></tr>`;
     });
     html += '</tbody></table>';
@@ -4002,7 +4122,9 @@ function refreshDashboard() {
   if (ddc) ddc.textContent = docs.length;
   if (ddr) ddr.textContent = analyzed.length + ' analyzed';
   if (dow && income > 0) {
-    const standard = 29200;
+    // 2024 standard deduction by filing status
+    const fs = (APP.questionnaire?.filingStatus || 'MFJ').toUpperCase();
+    const standard = { MFJ: 29200, MFS: 14600, S: 14600, HOH: 21900 }[fs] || 29200;
     const taxable = Math.max(0, income - deductions - standard);
     dow.textContent = '$' + Math.round(taxable * 0.22).toLocaleString() + '*';
   }
@@ -4110,7 +4232,7 @@ function refreshDashboard() {
       step: 9, page: 'filing', icon: '📑',
       label: 'Review Ohio Taxes',
       sub: 'OBID, SD-100 school district, RITA city tax',
-      done: !!(document.getElementById('obid_biz1')?.value || document.getElementById('sd_rate')?.value),
+      done: !!(q2?.ohioDistrict && q2?.ohioOBID), // persisted questionnaire answers, not transient DOM inputs
       required: false
     },
     {
@@ -5005,13 +5127,22 @@ function calcDeductions() {
   const totalQBI = biz1Net + biz2Net;
   const totalHHIncome = n('qbi_total_income');
   const w2Wages = n('qbi_w2_wages');
-  const QBI_THRESHOLD_MFJ = 383900;
-  let qbiDed = totalQBI * 0.20;
-  if (totalHHIncome > QBI_THRESHOLD_MFJ && w2Wages > 0) {
-    const w2Limit = w2Wages * 0.50;
-    qbiDed = Math.min(qbiDed, w2Limit);
-  } else if (totalHHIncome > QBI_THRESHOLD_MFJ + 100000) {
-    qbiDed = 0;
+  // 2024 §199A thresholds; MFJ vs all other statuses. Phase-in range: $100K MFJ, $50K others.
+  const isMFJ = (APP.questionnaire?.filingStatus || 'MFJ').toUpperCase() === 'MFJ';
+  const threshold = isMFJ ? 383900 : 191950;
+  const phaseRange = isMFJ ? 100000 : 50000;
+  const fullDed = totalQBI * 0.20;
+  const wageLimit = w2Wages * 0.50; // simplified — ignores 25%+2.5% UBIA alternative
+  let qbiDed;
+  if (totalHHIncome <= threshold) {
+    qbiDed = fullDed;
+  } else if (totalHHIncome >= threshold + phaseRange) {
+    qbiDed = Math.min(fullDed, wageLimit); // 0 if no W-2 wages
+  } else {
+    // Within phase-in: the wage limit phases in proportionally
+    const pctIn = (totalHHIncome - threshold) / phaseRange;
+    const reduction = Math.max(0, fullDed - wageLimit) * pctIn;
+    qbiDed = fullDed - reduction;
   }
   qbiDed = Math.max(0, Math.round(qbiDed));
   const qbiEl = document.getElementById('qbiResult');
@@ -5020,36 +5151,42 @@ function calcDeductions() {
     qbiEl.innerHTML = `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;">
       <div><div style="font-size:11px;color:var(--text2);">Combined QBI</div><div style="font-size:18px;font-weight:700;color:var(--accent);">$${totalQBI.toLocaleString()}</div></div>
       <div><div style="font-size:11px;color:var(--text2);">20% Deduction</div><div style="font-size:18px;font-weight:700;color:var(--accent3);">$${qbiDed.toLocaleString()}</div></div>
-      <div style="font-size:12px;color:var(--text2);align-self:center;">${totalHHIncome > QBI_THRESHOLD_MFJ ? '⚠️ Phase-out applies — W-2 wage limit used' : '✅ Full 20% deduction available'}</div>
+      <div style="font-size:12px;color:var(--text2);align-self:center;">${totalHHIncome > threshold ? '⚠️ Over $' + threshold.toLocaleString() + ' (' + (isMFJ?'MFJ':'non-MFJ') + ') — W-2 wage limit applies' : '✅ Full 20% deduction available'}</div>
     </div>`;
   } else if (qbiEl) { qbiEl.style.display = 'none'; }
 
-  // Home Office
+  // Home Office — Form 8829: deduction cannot exceed net business income
+  const bizNetForHO = (APP.bookkeeping||[]).filter(b=>b.type==='Income').reduce((s,b)=>s+parseFloat(b.amount||0),0)
+                    - (APP.bookkeeping||[]).filter(b=>b.type==='Expense').reduce((s,b)=>s+parseFloat(b.amount||0),0);
+  const hoIncomeCap = Math.max(0, bizNetForHO);
+  const capNote = (raw, capped) => raw > capped
+    ? `<div style="font-size:11px;color:var(--warn);margin-top:6px;">⚠️ Limited to net business income ($${capped.toLocaleString()}) per Form 8829 — excess carries forward</div>` : '';
   let hoDed = 0;
   const hoEl = document.getElementById('hoResult');
   if (_hoMethod === 'simple') {
     const sqft = Math.min(n('ho_simple_sqft'), 300);
-    hoDed = Math.round(sqft * 5);
+    const hoRaw = Math.round(sqft * 5);
+    hoDed = Math.min(hoRaw, hoIncomeCap);
     if (hoEl && sqft > 0) {
       hoEl.style.display = '';
-      hoEl.innerHTML = `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Simplified method: ${sqft} sq ft × $5</span><span style="font-size:18px;font-weight:700;color:var(--accent3);">$${hoDed.toLocaleString()}</span></div>`;
+      hoEl.innerHTML = `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Simplified method: ${sqft} sq ft × $5</span><span style="font-size:18px;font-weight:700;color:var(--accent3);">$${hoDed.toLocaleString()}</span></div>${capNote(hoRaw, hoDed)}`;
     } else if (hoEl) hoEl.style.display = 'none';
   } else {
     const offSqft = n('ho_office_sqft'), homeSqft = n('ho_home_sqft');
     if (offSqft > 0 && homeSqft > 0) {
-      const pct = offSqft / homeSqft;
+      const pct = Math.min(1, offSqft / homeSqft);
       const totalHome = n('ho_rent') + n('ho_utilities') + n('ho_insurance') + n('ho_repairs');
-      hoDed = Math.round(totalHome * pct);
-      const directExpenses = 0;
+      const hoRaw = Math.round(totalHome * pct);
+      hoDed = Math.min(hoRaw, hoIncomeCap);
       if (hoEl && totalHome > 0) {
         hoEl.style.display = '';
         hoEl.innerHTML = `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
           <div><div style="font-size:11px;color:var(--text2);">Business Use %</div><div style="font-size:18px;font-weight:700;color:var(--accent);">${(pct*100).toFixed(1)}%</div></div>
           <div><div style="font-size:11px;color:var(--text2);">Total Home Expenses</div><div style="font-size:18px;font-weight:700;color:var(--accent);">$${totalHome.toLocaleString()}</div></div>
           <div><div style="font-size:11px;color:var(--text2);">Deductible Amount</div><div style="font-size:18px;font-weight:700;color:var(--accent3);">$${hoDed.toLocaleString()}</div></div>
-        </div>`;
+        </div>${capNote(hoRaw, hoDed)}`;
       } else if (hoEl) hoEl.style.display = 'none';
-    }
+    } else if (hoEl) hoEl.style.display = 'none';
   }
 
   // SE Health Insurance
@@ -5460,15 +5597,23 @@ function exportAllData() {
   toast('Full backup exported!', 'success');
 }
 
-function clearAllData() {
-  if (!confirm('This will permanently delete ALL your tax data. This cannot be undone. Are you sure?')) return;
-  if (!confirm('Are you absolutely sure? All documents and questionnaire data will be lost.')) return;
-  APP.documents = [];
-  APP.questionnaire = null;
-  APP.savings = null;
-  APP.bookkeeping = [];
-  saveApp();
+async function clearAllData() {
+  if (!confirm('This will permanently delete ALL your tax data — every year, local and cloud. This cannot be undone. Are you sure?')) return;
+  if (!confirm('Are you absolutely sure? All documents, bookkeeping, mileage, deductions, and questionnaire data will be lost.')) return;
+  if (bgSyncInterval) { clearInterval(bgSyncInterval); bgSyncInterval = null; }
+  // Delete the cloud row first so background sync on another device can't resurrect it
+  try {
+    const hash = APP.pinHash || getStore('tv_pinHash', '');
+    if (hash) await sbFetch('/rest/v1/taxvault_data?pin_hash=eq.' + encodeURIComponent(hash), 'DELETE');
+  } catch(e) { toast('⚠️ Could not delete cloud copy: ' + e.message, 'warn'); }
+  // Remove every TaxVault localStorage key (all years), keeping only the PIN
+  const keepPin = getStore('tv_pinHash', null);
+  Object.keys(localStorage).filter(k => k.startsWith('tv_')).forEach(k => localStorage.removeItem(k));
+  if (keepPin) setStore('tv_pinHash', keepPin);
+  loadApp();
+  startBackgroundSync();
   toast('All data cleared', 'info');
+  refreshDashboard(); renderDocuments(); renderBookkeepingPage();
   showPage('dashboard');
 }
 
