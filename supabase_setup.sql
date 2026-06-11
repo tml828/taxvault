@@ -33,3 +33,7 @@ create policy "Users manage own data"
 -- fallback. Enabling RLS with no policies blocks all anon access.
 -- ============================================================
 -- alter table public.taxvault_data enable row level security;
+
+-- STEP 4: Grant permissions (run this if you see "account table not set up")
+grant usage on schema public to authenticated;
+grant all on public.taxvault_user_data to authenticated;
