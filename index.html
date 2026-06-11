@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -1004,6 +1004,9 @@
        unreliable in mobile Safari and trap/forward touches unpredictably */
     .main-content { margin-left: 0; padding: 70px 12px 100px; height: auto; min-height: 100vh; overflow: visible; }
     .page-content { overflow: visible; }
+    /* iOS Safari auto-zooms on focus when an input's font-size is under 16px */
+    input[type="text"], input[type="password"], input[type="email"], input[type="number"],
+    select, textarea { font-size: 16px; }
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
     .page-header { flex-direction: column; gap: 12px; }
   }
@@ -2294,7 +2297,7 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADaCAYAAACI
 'use strict';
 
 // ── CONSTANTS ────────────────────────────────────────────────
-const BUILD_VERSION  = 'v2026.06.11-4';
+const BUILD_VERSION  = 'v2026.06.11-5';
 const CURRENT_YEAR   = new Date().getFullYear();
 
 const AUTO_TAX_YEAR  = String(CURRENT_YEAR - 1);
