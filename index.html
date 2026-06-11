@@ -1061,18 +1061,17 @@
   #mobileDropdown {
     display: none;
     position: fixed;
-    top: 56px; left: 0; right: 0;
+    top: 56px; left: 0; right: 0; bottom: 0;
     background: rgba(8,12,22,0.98);
     backdrop-filter: blur(32px);
     -webkit-backdrop-filter: blur(32px);
     border-bottom: 1px solid rgba(255,255,255,0.10);
     z-index: 199;
-    padding: 8px 12px 16px;
+    padding: 8px 12px 40px;
     animation: dropDown 0.2s cubic-bezier(0.16,1,0.3,1);
-    max-height: calc(100vh - 56px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow-y: scroll;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   @keyframes dropDown {
