@@ -1069,6 +1069,8 @@
     animation: dropDown 0.2s cubic-bezier(0.16,1,0.3,1);
     max-height: calc(100vh - 56px);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   @keyframes dropDown {
@@ -3152,6 +3154,10 @@ function toggleMobileDropdown() {
   mobDropOpen = !mobDropOpen;
   const d = document.getElementById('mobileDropdown');
   if (d) d.style.display = mobDropOpen ? 'block' : 'none';
+  // Lock background scroll while the menu is open so taps land on menu items
+  const mc = document.querySelector('.main-content');
+  if (mc) mc.style.overflow = mobDropOpen ? 'hidden' : '';
+  document.body.style.overflow = mobDropOpen ? 'hidden' : '';
   // Sync user info into mobile dropdown
   const sn = document.getElementById('sidebarName');
   const sy = document.getElementById('sidebarYear');
@@ -3168,6 +3174,9 @@ function closeMobileDropdown() {
   mobDropOpen = false;
   const el = document.getElementById('mobileDropdown');
   if (el) el.style.display = 'none';
+  const mc = document.querySelector('.main-content');
+  if (mc) mc.style.overflow = '';
+  document.body.style.overflow = '';
 }
 
 // ── BANNER ────────────────────────────────────────────────────
