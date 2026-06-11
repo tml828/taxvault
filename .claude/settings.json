@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Check if index.html or supabase_setup.sql changed since the last commit by running: git diff HEAD -- index.html supabase_setup.sql\n\nIf there are meaningful changes (not just whitespace), read CLAUDE.md and update it to accurately reflect the current state of the codebase. Focus on:\n- Key functions table (add/remove/update any that changed)\n- Tax calculation rules (update if logic changed)\n- Auth architecture (update if auth flow changed)\n- Data flow description (update if save/load logic changed)\n- Mobile/iOS notes (update if CSS/viewport changed)\n- BUILD_VERSION constant (update to match what's in index.html)\n- Any new sections needed for new features\n\nDo NOT change the deployment instructions, Supabase schema table, or Development Branch section unless those actually changed in the diff.\n\nIf there are no meaningful changes, do nothing.",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
