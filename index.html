@@ -2109,8 +2109,12 @@
             <div class="settings-row-label">🔐 Cloud Account</div>
             <div class="settings-row-sub" id="authStatusSub">Not signed in — cloud data is only protected by your PIN</div>
           </div>
-          <button class="btn btn-secondary btn-sm" id="authActionBtn" onclick="showAuthModal()">Sign In</button>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="btn btn-secondary btn-sm" onclick="manualSync()">🔄 Sync Now</button>
+            <button class="btn btn-secondary btn-sm" id="authActionBtn" onclick="showAuthModal()">Sign In</button>
+          </div>
         </div>
+        <div id="syncDiag" style="font-size:12px;color:var(--text2);margin-top:8px;"></div>
       </div>
 
       <div class="glass panel">
@@ -2502,6 +2506,41 @@ function authSignOut() {
   toast('Signed out — sync falls back to PIN-keyed storage', 'info');
 }
 
+// Manual sync with step-by-step diagnostics shown under the Cloud Account row
+async function manualSync() {
+  const diag = document.getElementById('syncDiag');
+  const out = [];
+  const show = () => { if (diag) diag.innerHTML = out.join('<br>'); };
+  out.push('⏳ Checking session...'); show();
+  const s = await getValidSession();
+  out[out.length-1] = s ? ('✅ Signed in as ' + esc(s.email)) : '❌ Not signed in — tap Sign In first';
+  show();
+  if (s) {
+    out.push('⏳ Checking secure table...'); show();
+    try {
+      await sbFetch(USER_TABLE + '?user_id=eq.' + s.user_id + '&select=user_id', 'GET', null, s.access_token);
+      _userTableMissing = false;
+      out[out.length-1] = '✅ Secure table reachable';
+    } catch(e) {
+      out[out.length-1] = isUserTableError(e)
+        ? '❌ Secure table missing — run the setup SQL in Supabase'
+        : '❌ Table check failed: ' + esc(e.message);
+    }
+    show();
+  }
+  out.push('⏳ Syncing...'); show();
+  try {
+    await loadFromCloud(APP.pinHash);
+    await saveToCloud();
+    out[out.length-1] = '✅ Sync complete · ' + new Date().toLocaleTimeString();
+    renderDocuments(); renderBookkeepingPage(); refreshDashboard();
+  } catch(e) {
+    out[out.length-1] = '❌ Sync failed: ' + esc(e.message);
+  }
+  out.push(APP.apiKey ? '✅ API key present on this device' : '⚠️ No API key on this device yet — sync from account or add in Settings');
+  show();
+}
+
 function updateAccountUI() {
   const sub = document.getElementById('authStatusSub');
   const btn = document.getElementById('authActionBtn');
@@ -2630,10 +2669,13 @@ async function loadFromCloud(pinHash) {
   const url = getSbUrl(), key = getSbKey();
   const hash = pinHash || APP.pinHash || getStore('tv_pinHash', '');
   if (!url || !key || !hash) return;
+  // Re-probe the account table on every full load — the user may have just
+  // run the setup SQL, and a latched "missing" flag would ignore it forever
+  _userTableMissing = false;
   try {
     let r = null;
     let fromAccount = false;
-    const s = _userTableMissing ? null : await getValidSession();
+    const s = await getValidSession();
     if (s) {
       try {
         const rows = await sbFetch(USER_TABLE + '?user_id=eq.' + s.user_id + '&select=*', 'GET', null, s.access_token);
