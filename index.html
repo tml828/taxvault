@@ -1000,8 +1000,8 @@
   /* RESPONSIVE */
   @media (max-width: 768px) {
     .sidebar { display: none; }
-    .main-content { margin-left: 0; padding: 70px 12px 24px; overflow-y: auto; height: 100vh; -webkit-overflow-scrolling: touch; }
-    .page-content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .main-content { margin-left: 0; padding: 70px 12px 100px; overflow-y: auto; height: 100vh; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+    .page-content { overflow-y: visible; }
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
     .page-header { flex-direction: column; gap: 12px; }
   }
@@ -1089,14 +1089,17 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 13px 12px;
+    padding: 16px 14px;
     border-radius: 11px;
     cursor: pointer;
     color: var(--text2);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 500;
     transition: all 0.15s;
     border: 1px solid transparent;
+    min-height: 52px;
+    -webkit-tap-highlight-color: rgba(0,200,232,0.15);
+    touch-action: manipulation;
   }
   .mob-drop-item:active { background: rgba(255,255,255,0.08); }
   .mob-drop-item.active {
