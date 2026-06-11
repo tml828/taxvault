@@ -2294,7 +2294,7 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADaCAYAAACI
 'use strict';
 
 // ── CONSTANTS ────────────────────────────────────────────────
-const BUILD_VERSION  = 'v2026.06.11-3';
+const BUILD_VERSION  = 'v2026.06.11-4';
 const CURRENT_YEAR   = new Date().getFullYear();
 
 const AUTO_TAX_YEAR  = String(CURRENT_YEAR - 1);
@@ -2352,8 +2352,12 @@ function esc(s) {
 }
 
 // ── HASH ─────────────────────────────────────────────────────
-async function hashPin(pin) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
+async function hashPin(pin, legacy = false) {
+  // v2 hashes are salted so a stored hash never equals the publicly visible
+  // DEFAULT_PIN_HASH even for the same digits. legacy=true reproduces the old
+  // unsalted format, used once at login to migrate existing PINs.
+  const input = legacy ? pin : pin + ':taxvault:v2';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
@@ -2933,8 +2937,20 @@ async function tryLogin() {
   const attempt = pinBuffer;
   pinBuffer = '';
   updatePinDots('dot', '', 4);
-  const hash = await hashPin(attempt);
-  if (hash === APP.pinHash) {
+  let hash = await hashPin(attempt);
+  let matched = hash === APP.pinHash;
+  if (!matched) {
+    // Accept the old unsalted format once, then silently upgrade to v2 —
+    // same digits for the user, new fingerprint on disk
+    const legacyHash = await hashPin(attempt, true);
+    if (legacyHash === APP.pinHash) {
+      matched = true;
+      APP.pinHash = hash;
+      APP.pinChangedAt = Date.now(); // stamp so the upgraded hash wins the cross-device sync
+      saveLocal();
+    }
+  }
+  if (matched) {
     currentUser = { name: APP.ownerName || 'Owner' };
     setStatus('pinStatus', 'Loading...', '');
     showApp();
