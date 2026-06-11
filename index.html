@@ -2294,6 +2294,7 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADaCAYAAACI
 'use strict';
 
 // ── CONSTANTS ────────────────────────────────────────────────
+const BUILD_VERSION  = 'v2026.06.11-3';
 const CURRENT_YEAR   = new Date().getFullYear();
 
 const AUTO_TAX_YEAR  = String(CURRENT_YEAR - 1);
@@ -2538,6 +2539,19 @@ async function manualSync() {
     out[out.length-1] = '❌ Sync failed: ' + esc(e.message);
   }
   out.push(APP.apiKey ? '✅ API key present on this device' : '⚠️ No API key on this device yet — sync from account or add in Settings');
+  // localStorage persistence probe — private browsing or blocked storage makes
+  // saves vanish on reload (classic cause of "my PIN keeps resetting")
+  try {
+    localStorage.setItem('tv_probe', '1');
+    const ok = localStorage.getItem('tv_probe') === '1';
+    localStorage.removeItem('tv_probe');
+    out.push(ok ? '✅ Local storage writable' : '❌ Local storage NOT persisting — are you in private browsing?');
+  } catch(e) { out.push('❌ Local storage blocked: ' + esc(e.message)); }
+  const storedPin = getStore('tv_pinHash', null);
+  out.push(storedPin === DEFAULT_PIN_HASH ? '⚠️ Stored PIN on this device is still the DEFAULT'
+         : storedPin ? '✅ Custom PIN stored on this device'
+         : '❌ No PIN stored on this device');
+  out.push('ℹ️ Build: ' + BUILD_VERSION);
   show();
 }
 
@@ -3028,7 +3042,11 @@ async function cpHandleStep2() {
       }
     } catch(e) { console.warn('Cloud PIN migration failed:', e); }
     closePwModal();
-    toast('PIN updated successfully!', 'success');
+    if (getStore('tv_pinHash', null) !== APP.pinHash) {
+      toast('❌ PIN saved in memory but NOT persisted — storage is blocked on this device (private browsing?)', 'error');
+    } else {
+      toast('PIN updated successfully!', 'success');
+    }
   } else {
     updatePinDots('cpd2_', 'error', 6, 4);
     setStatus('cpStatus2', 'PINs do not match — start over', 'error');
