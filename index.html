@@ -2603,7 +2603,12 @@ async function saveToCloud() {
     let savedToAccount = false;
     if (s) {
       try {
-        await sbFetch(USER_TABLE, 'POST', { ...row, user_id: s.user_id }, s.access_token);
+        // Account rows are RLS-protected, so the PIN hash and API key can ride
+        // along — this is what keeps PIN and AI working across devices.
+        // NEVER add this to the legacy pin_hash row (it's effectively public).
+        const accountRow = { ...row, user_id: s.user_id,
+          year_data: { ...existing, _meta: { pinHash: APP.pinHash, apiKey: APP.apiKey } } };
+        await sbFetch(USER_TABLE, 'POST', accountRow, s.access_token);
         savedToAccount = true;
       } catch(e) {
         if (isUserTableError(e)) { _userTableMissing = true; }
@@ -2627,11 +2632,13 @@ async function loadFromCloud(pinHash) {
   if (!url || !key || !hash) return;
   try {
     let r = null;
+    let fromAccount = false;
     const s = _userTableMissing ? null : await getValidSession();
     if (s) {
       try {
         const rows = await sbFetch(USER_TABLE + '?user_id=eq.' + s.user_id + '&select=*', 'GET', null, s.access_token);
         r = rows?.[0] || null;
+        if (r) fromAccount = true;
         if (!r) {
           // First signed-in load: migrate the legacy pin_hash row into the account.
           // The legacy row is intentionally left in place as a fallback until the
@@ -2697,6 +2704,17 @@ async function loadFromCloud(pinHash) {
     // Note: deliberately NOT adopting r.tax_year — the merged data above belongs to
     // the locally selected year; switching years here would save it under the wrong key
     if (r.owner_name)    APP.ownerName     = r.owner_name;
+    // PIN + API key sync — only trusted when the row came from the RLS-protected
+    // account table (the legacy pin_hash row must never carry secrets)
+    const meta = fromAccount ? r.year_data?._meta : null;
+    if (meta?.pinHash && meta.pinHash !== APP.pinHash) {
+      APP.pinHash = meta.pinHash;
+      toast('🔄 PIN synced from your account — use your usual PIN on this device from now on', 'info');
+    }
+    if (meta?.apiKey && !APP.apiKey) {
+      APP.apiKey = meta.apiKey;
+      updateStatusLights();
+    }
     saveLocal();
     const n = APP.documents.length;
     setSyncStatus('✓ Synced · ' + n + ' doc' + (n !== 1 ? 's' : ''));
