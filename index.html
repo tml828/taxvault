@@ -1000,8 +1000,10 @@
   /* RESPONSIVE */
   @media (max-width: 768px) {
     .sidebar { display: none; }
-    .main-content { margin-left: 0; padding: 70px 12px 100px; overflow-y: auto; height: 100vh; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
-    .page-content { overflow-y: visible; }
+    /* Let the document itself scroll on mobile — inner scroll containers are
+       unreliable in mobile Safari and trap/forward touches unpredictably */
+    .main-content { margin-left: 0; padding: 70px 12px 100px; height: auto; min-height: 100vh; overflow: visible; }
+    .page-content { overflow: visible; }
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
     .page-header { flex-direction: column; gap: 12px; }
   }
