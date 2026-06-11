@@ -2560,6 +2560,7 @@ function loadApp() {
   const yd   = getStore('tv_yearData_y' + year, {});
   APP = {
     pinHash:       getStore('tv_pinHash', DEFAULT_PIN_HASH),
+    pinChangedAt:  getStore('tv_pinChangedAt', 0),
     ownerName:     getStore('tv_ownerName', 'Owner'),
     apiKey:        getStore('tv_apiKey', ''),
     taxYear:       year,
@@ -2599,6 +2600,7 @@ function saveLocal() {
   setStore('tv_apiKey',        APP.apiKey);
   setStore('tv_ownerName',     APP.ownerName);
   setStore('tv_pinHash',       APP.pinHash);
+  setStore('tv_pinChangedAt',  APP.pinChangedAt || 0);
   setStore('tv_deletedDocIds', APP.deletedDocIds || []);
 }
 
@@ -2646,7 +2648,7 @@ async function saveToCloud() {
         // along — this is what keeps PIN and AI working across devices.
         // NEVER add this to the legacy pin_hash row (it's effectively public).
         const accountRow = { ...row, user_id: s.user_id,
-          year_data: { ...existing, _meta: { pinHash: APP.pinHash, apiKey: APP.apiKey } } };
+          year_data: { ...existing, _meta: { pinHash: APP.pinHash, pinChangedAt: APP.pinChangedAt || 0, apiKey: APP.apiKey } } };
         await sbFetch(USER_TABLE, 'POST', accountRow, s.access_token);
         savedToAccount = true;
       } catch(e) {
@@ -2749,8 +2751,9 @@ async function loadFromCloud(pinHash) {
     // PIN + API key sync — only trusted when the row came from the RLS-protected
     // account table (the legacy pin_hash row must never carry secrets)
     const meta = fromAccount ? r.year_data?._meta : null;
-    if (meta?.pinHash && meta.pinHash !== APP.pinHash) {
+    if (meta?.pinHash && meta.pinHash !== APP.pinHash && (meta.pinChangedAt || 0) > (APP.pinChangedAt || 0)) {
       APP.pinHash = meta.pinHash;
+      APP.pinChangedAt = meta.pinChangedAt;
       toast('🔄 PIN synced from your account — use your usual PIN on this device from now on', 'info');
     }
     if (meta?.apiKey && !APP.apiKey) {
@@ -3015,6 +3018,7 @@ async function cpHandleStep2() {
   if (confirmPin === _cpNewPin) {
     const oldHash = APP.pinHash;
     APP.pinHash = await hashPin(_cpNewPin);
+    APP.pinChangedAt = Date.now();
     saveLocal();
     // Move the cloud row to the new pin_hash key so cloud data isn't orphaned
     try {
@@ -3048,6 +3052,7 @@ function setupDel() { setupPin = setupPin.slice(0,-1); updatePinDots('setupDot',
 async function setupConfirm() {
   if (setupPin.length !== 4) { toast('Enter a 4-digit PIN','error'); return; }
   APP.pinHash = await hashPin(setupPin);
+  APP.pinChangedAt = Date.now();
   saveLocal();
   document.getElementById('setupScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
