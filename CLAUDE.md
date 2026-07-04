@@ -73,7 +73,7 @@ Old table `taxvault_data` (pin_hash keyed) has RLS enabled with no policies — 
 
 ## Tax Calculations
 
-- **QBI (§199A)**: Filing-status-aware thresholds — MFJ $383,900 / others $191,950. Phase-in over $100K (MFJ) / $50K range. W-2 wages = 0 → deduction is 0 above threshold.
+- **QBI (§199A)**: Filing-status-aware thresholds — MFJ $394,600 / others $197,300 (2025 IRS values). Phase-in over $100K (MFJ) / $50K range. W-2 wages = 0 → deduction is 0 above threshold.
 - **Home office (Form 8829)**: Income cap = `max(0, bizNetForHO)`. Both simplified and actual methods capped. Office% clamped to ≤1.
 - **SE tax**: Applied only to `bizNetSE` (self-employment income minus expenses), not W-2 wages.
 - **Section 179**: Full cost deducted in purchase year only; zero in all subsequent years.
@@ -104,11 +104,49 @@ Clicking a step navigates to the relevant page.
 
 ## Deployment
 
-Push to `main` branch → GitHub Pages auto-deploys. No CI, no build step.
+Push to `main` branch → GitHub Pages auto-deploys.
 
-Current build version constant (near top of JS): `BUILD_VERSION = 'v2026.06.11-5'`
+Current build version constant (near top of JS): `BUILD_VERSION = 'v2026.07.04-2'`
 
 Bump this string on every deploy for cache verification via the Sync diagnostics panel.
+
+## CI / GitHub Actions
+
+`.github/workflows/ci.yml` runs on push to `main` or `claude/**` branches. Steps:
+
+1. **HTML lint** — HTMLHint with `.htmlhintrc` config (id-unique and src-not-empty disabled; both are SPA false positives)
+2. **XSS guard** — flags `${var}` inside innerHTML that isn't wrapped in `esc()`
+3. **BUILD_VERSION check** — fails if the constant is missing
+4. **AI field esc() check** — verifies `rec.title`, `rec.category`, etc. are always wrapped in `esc()`
+5. **File size** — fails if `index.html` exceeds 2MB
+
+Node.js version: 24.
+
+## Anthropic Proxy (optional)
+
+`workers/anthropic-proxy/` contains a Cloudflare Worker that holds the Anthropic API key server-side.
+
+- `index.js` — the Worker; whitelists `POST /v1/messages`, origin-locked to `tml828.github.io`
+- `wrangler.toml` — deploy config; set `ANTHROPIC_API_KEY` as a secret (never in the file)
+
+To activate: deploy the Worker, then set `ANTHROPIC_PROXY_URL` in `index.html` to the Worker URL. When empty, the app falls back to direct browser calls using the stored API key.
+
+## Recent Audit Fixes (2026-07-04)
+
+Applied in commit `efc35ba` (16 fixes):
+- `prefers-reduced-motion` CSS block added
+- QBI thresholds updated to 2025 IRS values
+- `saveToCloud()` debounced 2 seconds
+- PIN brute-force lockout: 5 attempts → 30s escalating lockout (sessionStorage)
+- File upload size guard: 10MB limit in `handleFiles()`
+- AbortController 60s timeout on all Anthropic `fetch()` calls
+- `esc()` applied to all AI response fields and user-data fields rendered into innerHTML
+- `exportAllData()` uses dynamic localStorage key scan instead of hardcoded year list
+- Escape key closes mobile dropdown
+- Background sync skips `renderBookkeepingPage()` if a field has focus
+- PIN keypad buttons use `<button>` with `aria-label`
+- Modals have `role="dialog" aria-modal="true"`
+- Document page shows local-only warning banner
 
 ## Development Branch
 
