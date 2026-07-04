@@ -2309,7 +2309,11 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADaCAYAAACI
 'use strict';
 
 // ── CONSTANTS ────────────────────────────────────────────────
-const BUILD_VERSION  = 'v2026.07.04-1';
+const BUILD_VERSION  = 'v2026.07.04-2';
+// Set ANTHROPIC_PROXY_URL to your Cloudflare Worker URL to keep the API key server-side.
+// Leave empty to fall back to direct browser calls (key exposed in DevTools).
+// Deploy: workers/anthropic-proxy/ — see wrangler.toml for setup instructions.
+const ANTHROPIC_PROXY_URL = ''; // e.g. 'https://taxvault-anthropic-proxy.YOUR-SUBDOMAIN.workers.dev'
 const CURRENT_YEAR   = new Date().getFullYear();
 
 const AUTO_TAX_YEAR  = String(CURRENT_YEAR - 1);
@@ -2379,6 +2383,24 @@ async function hashPin(pin, legacy = false) {
 // ── SUPABASE ─────────────────────────────────────────────────
 function getSbUrl() { return getStore('tv_sb_url','') || SB_URL; }
 function getSbKey() { return getStore('tv_sb_key','') || SB_KEY; }
+
+// Returns the Anthropic endpoint — proxy URL if configured, otherwise direct.
+function getAnthropicEndpoint() {
+  return ANTHROPIC_PROXY_URL ? ANTHROPIC_PROXY_URL + '/v1/messages' : 'https://api.anthropic.com/v1/messages';
+}
+// Returns Anthropic request headers. Direct calls need x-api-key + bypass header;
+// proxy calls omit both (the worker holds the key server-side).
+function getAnthropicHeaders() {
+  if (ANTHROPIC_PROXY_URL) {
+    return { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' };
+  }
+  return {
+    'Content-Type': 'application/json',
+    'x-api-key': APP.apiKey,
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+}
 
 async function sbFetch(path, method = 'GET', body = null, accessToken = null) {
   const url = getSbUrl(), key = getSbKey();
@@ -3523,14 +3545,9 @@ Return ONLY this JSON (no markdown):
     const timeoutId1 = setTimeout(() => controller1.abort(), 60000);
     let response;
     try {
-      response = await fetch('https://api.anthropic.com/v1/messages', {
+      response = await fetch(getAnthropicEndpoint(), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': APP.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: getAnthropicHeaders(),
         body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:2000, messages:[{role:'user', content:contentParts}]}),
         signal: controller1.signal
       });
@@ -3998,14 +4015,9 @@ Return [] if no transactions found.`});
   const timeoutId2 = setTimeout(() => controller2.abort(), 60000);
   let response;
   try {
-    response = await fetch('https://api.anthropic.com/v1/messages', {
+    response = await fetch(getAnthropicEndpoint(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': APP.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
+      headers: getAnthropicHeaders(),
       body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:4000, messages:[{role:'user', content:contentParts}]}),
       signal: controller2.signal
     });
@@ -4126,14 +4138,9 @@ Return as clean HTML with inline styles (no external CSS). Use dark-friendly col
     const timeoutId3 = setTimeout(() => controller3.abort(), 60000);
     let response;
     try {
-      response = await fetch('https://api.anthropic.com/v1/messages', {
+      response = await fetch(getAnthropicEndpoint(), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': APP.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: getAnthropicHeaders(),
         body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:3000, messages:[{role:'user', content:prompt}]}),
         signal: controller3.signal
       });
@@ -5004,8 +5011,8 @@ Include 8+ specific strategies including Ohio Business Income Deduction, SEP-IRA
     const timeoutId4 = setTimeout(() => controller4.abort(), 60000);
     let response;
     try {
-      response = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',headers:{'Content-Type':'application/json','x-api-key':APP.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      response = await fetch(getAnthropicEndpoint(),{
+        method:'POST',headers:getAnthropicHeaders(),
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]}),
         signal: controller4.signal
       });

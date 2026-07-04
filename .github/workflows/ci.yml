@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install HTMLHint
+        run: npm install -g htmlhint
+
+      - name: HTML lint
+        run: htmlhint index.html --config .htmlhintrc
+
+      - name: Check for unescaped innerHTML (XSS guard)
+        run: |
+          # Flag template literals inside innerHTML that don't use esc()
+          # Pattern: innerHTML contains ${ but the variable isn't wrapped in esc(
+          BAD=$(grep -n 'innerHTML' index.html \
+            | grep '\${' \
+            | grep -v 'esc(' \
+            | grep -v '^\s*//' \
+            | grep -v 'style\|class\|id\|data-\|href\|src\|type\|value\|placeholder\|aria-\|role\|tabindex\|min\|max\|step\|checked\|selected\|disabled\|readonly\|for\|name\|method\|action\|enctype\|target\|rel\|lang\|dir\|charset\|content\|http-equiv\|viewport\|width\|height\|colspan\|rowspan\|align\|valign\|border\|cellpadding\|cellspacing\|summary\|scope\|abbr\|axis\|headers\|shape\|coords\|usemap\|ismap\|longdesc\|accesskey\|tabindex' \
+            || true)
+          if [ -n "$BAD" ]; then
+            echo "⚠ Potential unescaped user/AI data in innerHTML:"
+            echo "$BAD"
+            echo ""
+            echo "Wrap dynamic values with esc() before inserting into innerHTML."
+            exit 1
+          fi
+          echo "✓ No unescaped innerHTML patterns detected"
+
+      - name: Check BUILD_VERSION is set
+        run: |
+          VER=$(grep -o "BUILD_VERSION\s*=\s*'[^']*'" index.html | head -1)
+          if [ -z "$VER" ]; then
+            echo "❌ BUILD_VERSION constant not found in index.html"
+            exit 1
+          fi
+          echo "✓ $VER"
+
+      - name: Verify esc() used on AI fields
+        run: |
+          # Check that rec.title etc. appear only inside esc() calls
+          for FIELD in rec.title rec.category rec.description rec.estimatedSavings rec.action rec.freeTaxUSANote; do
+            RAW=$(grep -n "\${$FIELD}" index.html | grep -v "esc($FIELD)" || true)
+            if [ -n "$RAW" ]; then
+              echo "❌ $FIELD used without esc() in innerHTML:"
+              echo "$RAW"
+              exit 1
+            fi
+          done
+          echo "✓ All AI response fields use esc()"
+
+      - name: Check file size
+        run: |
+          SIZE=$(wc -c < index.html)
+          MAX=$((2 * 1024 * 1024))  # 2MB
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "❌ index.html is $(numfmt --to=iec $SIZE) — exceeds 2MB limit"
+            exit 1
+          fi
+          echo "✓ index.html is $(numfmt --to=iec $SIZE)"
