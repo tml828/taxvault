@@ -1130,6 +1130,13 @@
   @media (max-width: 768px) {
     #mobileTopBar { display: flex; }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1155,18 +1162,18 @@
         <div class="pin-dot" id="dot3"></div>
       </div>
       <div class="pin-pad">
-        <div class="pin-key" onclick="pinPress('1')">1</div>
-        <div class="pin-key" onclick="pinPress('2')">2</div>
-        <div class="pin-key" onclick="pinPress('3')">3</div>
-        <div class="pin-key" onclick="pinPress('4')">4</div>
-        <div class="pin-key" onclick="pinPress('5')">5</div>
-        <div class="pin-key" onclick="pinPress('6')">6</div>
-        <div class="pin-key" onclick="pinPress('7')">7</div>
-        <div class="pin-key" onclick="pinPress('8')">8</div>
-        <div class="pin-key" onclick="pinPress('9')">9</div>
-        <div class="pin-key del" onclick="pinDel()">⌫</div>
-        <div class="pin-key zero" onclick="pinPress('0')">0</div>
-        <div class="pin-key" onclick="pinConfirm()" id="pinConfirmKey" style="color:var(--accent3);font-size:20px;">✓</div>
+        <button type="button" class="pin-key" aria-label="PIN digit 1" onclick="pinPress('1')">1</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 2" onclick="pinPress('2')">2</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 3" onclick="pinPress('3')">3</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 4" onclick="pinPress('4')">4</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 5" onclick="pinPress('5')">5</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 6" onclick="pinPress('6')">6</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 7" onclick="pinPress('7')">7</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 8" onclick="pinPress('8')">8</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 9" onclick="pinPress('9')">9</button>
+        <button type="button" class="pin-key del" aria-label="Backspace" onclick="pinDel()">⌫</button>
+        <button type="button" class="pin-key zero" aria-label="PIN digit 0" onclick="pinPress('0')">0</button>
+        <button type="button" class="pin-key" onclick="pinConfirm()" id="pinConfirmKey" aria-label="Confirm PIN" style="color:var(--accent3);font-size:20px;">✓</button>
       </div>
       <div class="pin-status" id="pinStatus">4–6 digits</div>
       <div id="noSyncWarning" style="display:none;margin-top:16px;padding:10px 16px;background:rgba(255,184,48,0.1);border:1px solid rgba(255,184,48,0.3);border-radius:10px;font-size:12px;color:var(--warn);text-align:center;">
@@ -1190,18 +1197,18 @@
         <div class="pin-dot" id="sdot5"></div>
       </div>
       <div class="pin-pad">
-        <div class="pin-key" onclick="setupPress('1')">1</div>
-        <div class="pin-key" onclick="setupPress('2')">2</div>
-        <div class="pin-key" onclick="setupPress('3')">3</div>
-        <div class="pin-key" onclick="setupPress('4')">4</div>
-        <div class="pin-key" onclick="setupPress('5')">5</div>
-        <div class="pin-key" onclick="setupPress('6')">6</div>
-        <div class="pin-key" onclick="setupPress('7')">7</div>
-        <div class="pin-key" onclick="setupPress('8')">8</div>
-        <div class="pin-key" onclick="setupPress('9')">9</div>
-        <div class="pin-key del" onclick="setupDel()">⌫</div>
-        <div class="pin-key zero" onclick="setupPress('0')">0</div>
-        <div class="pin-key" style="visibility:hidden;"></div>
+        <button type="button" class="pin-key" aria-label="PIN digit 1" onclick="setupPress('1')">1</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 2" onclick="setupPress('2')">2</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 3" onclick="setupPress('3')">3</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 4" onclick="setupPress('4')">4</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 5" onclick="setupPress('5')">5</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 6" onclick="setupPress('6')">6</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 7" onclick="setupPress('7')">7</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 8" onclick="setupPress('8')">8</button>
+        <button type="button" class="pin-key" aria-label="PIN digit 9" onclick="setupPress('9')">9</button>
+        <button type="button" class="pin-key del" aria-label="Backspace" onclick="setupDel()">⌫</button>
+        <button type="button" class="pin-key zero" aria-label="PIN digit 0" onclick="setupPress('0')">0</button>
+        <button type="button" class="pin-key" style="visibility:hidden;" aria-hidden="true"></button>
       </div>
       <div class="pin-status" id="setupStatus">Choose 4 to 6 digits</div>
     </div>
@@ -1602,6 +1609,11 @@
           <button class="btn btn-secondary btn-sm" onclick="document.getElementById('scanInput').click()">📷 Scan / Camera</button>
           <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">📤 Upload File</button>
         </div>
+      </div>
+
+      <!-- Local storage warning -->
+      <div style="background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:#c8a000;margin-bottom:16px;">
+        ⚠ Uploaded files are stored on this device only and are not synced to the cloud. Use Export to back them up.
       </div>
 
       <!-- Upload Zone -->
@@ -2210,7 +2222,7 @@
 </div>
 
 <!-- DOCUMENT DETAIL MODAL -->
-<div id="docModal" style="display:none;" class="modal-overlay">
+<div id="docModal" style="display:none;" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="docModalTitle">
   <div class="modal">
     <div class="modal-title" id="docModalTitle">Document Details</div>
     <div id="docModalContent"></div>
@@ -2223,7 +2235,7 @@
 </div>
 
 <!-- CLOUD ACCOUNT MODAL -->
-<div id="authModal" style="display:none;" class="modal-overlay">
+<div id="authModal" style="display:none;" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Secure Your Cloud Data">
   <div class="modal" style="max-width:420px;">
     <div class="modal-title">🔐 Secure Your Cloud Data</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6;">
@@ -2242,7 +2254,7 @@
 </div>
 
 <!-- CHANGE PIN MODAL -->
-<div id="pwModal" style="display:none;" class="modal-overlay">
+<div id="pwModal" style="display:none;" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Change PIN">
   <div class="modal" style="max-width:400px;text-align:center;">
     <div class="modal-title">Change PIN</div>
     <div id="changePinStep1">
@@ -2297,7 +2309,7 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADaCAYAAACI
 'use strict';
 
 // ── CONSTANTS ────────────────────────────────────────────────
-const BUILD_VERSION  = 'v2026.06.11-5';
+const BUILD_VERSION  = 'v2026.07.04-1';
 const CURRENT_YEAR   = new Date().getFullYear();
 
 const AUTO_TAX_YEAR  = String(CURRENT_YEAR - 1);
@@ -2625,7 +2637,8 @@ function saveLocal() {
   setStore('tv_deletedDocIds', APP.deletedDocIds || []);
 }
 
-function saveApp() { saveLocal(); saveToCloud(); }
+let _cloudSaveTimer;
+function saveApp() { saveLocal(); clearTimeout(_cloudSaveTimer); _cloudSaveTimer = setTimeout(saveToCloud, 2000); }
 
 async function saveToCloud() {
   const url = getSbUrl(), key = getSbKey();
@@ -2825,8 +2838,10 @@ function startBackgroundSync() {
         if (Array.isArray(cyd.bookkeeping) && cyd.bookkeeping.length && cloudUpdatedAt > localSavedAt) APP.bookkeeping = cyd.bookkeeping;
         if (Array.isArray(cyd.expenses) && cyd.expenses.length && cloudUpdatedAt > localSavedAt) APP.expenses = cyd.expenses;
         saveLocal();
+        const activeEl = document.activeElement;
+        const inBookkeeping = activeEl && activeEl.closest && activeEl.closest('#page-bookkeeping');
         renderDocuments();
-        renderBookkeepingPage();
+        if (!inBookkeeping) renderBookkeepingPage();
         refreshDashboard();
         setSyncStatus('✓ Updated · ' + new Date().toLocaleTimeString());
       }
@@ -2937,6 +2952,14 @@ function pinConfirm() { if (pinBuffer.length === 4) tryLogin(); }
 
 async function tryLogin() {
   if (!APP.pinHash) return;
+  // Brute-force protection
+  const lockoutUntil = parseInt(sessionStorage.getItem('tv_pin_lockout') || '0', 10);
+  if (Date.now() < lockoutUntil) {
+    const secsLeft = Math.ceil((lockoutUntil - Date.now()) / 1000);
+    setStatus('pinStatus', `Too many attempts. Try again in ${secsLeft}s.`, 'error');
+    pinBuffer = ''; updatePinDots('dot', '', 4);
+    return;
+  }
   const attempt = pinBuffer;
   pinBuffer = '';
   updatePinDots('dot', '', 4);
@@ -2954,6 +2977,8 @@ async function tryLogin() {
     }
   }
   if (matched) {
+    sessionStorage.removeItem('tv_pin_attempts');
+    sessionStorage.removeItem('tv_pin_lockout');
     currentUser = { name: APP.ownerName || 'Owner' };
     setStatus('pinStatus', 'Loading...', '');
     showApp();
@@ -2984,7 +3009,16 @@ async function tryLogin() {
       const d = document.getElementById('dot' + i);
       if (d) { d.classList.add('filled', 'error'); }
     }
-    setStatus('pinStatus', 'Wrong PIN — try again', 'error');
+    let attempts = parseInt(sessionStorage.getItem('tv_pin_attempts') || '0', 10) + 1;
+    sessionStorage.setItem('tv_pin_attempts', attempts);
+    if (attempts >= 5) {
+      const multiplier = Math.min(Math.pow(2, Math.floor(attempts / 5) - 1), 16);
+      sessionStorage.setItem('tv_pin_lockout', Date.now() + 30000 * multiplier);
+      sessionStorage.setItem('tv_pin_attempts', '0');
+      setStatus('pinStatus', `Too many attempts — locked for ${30 * multiplier}s`, 'error');
+    } else {
+      setStatus('pinStatus', 'Wrong PIN — try again', 'error');
+    }
     setTimeout(() => { updatePinDots('dot', '', 4); setStatus('pinStatus', 'Enter PIN', ''); }, 900);
   }
 }
@@ -3392,6 +3426,12 @@ function handleDragLeave(e) { document.getElementById('uploadZone')?.classList.r
 
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
+  for (const file of files) {
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File "' + file.name + '" is too large (max 10MB). Please compress or split the file.');
+      return;
+    }
+  }
   if (!APP.apiKey) {
     toast('⚠️ Add your Anthropic API key in Settings first', 'error');
     showPage('settings');
@@ -3479,16 +3519,25 @@ Return ONLY this JSON (no markdown):
   "summary": "one sentence with payer, recipient, amount, and year"
 }`});
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': APP.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:2000, messages:[{role:'user', content:contentParts}]})
-    });
+    const controller1 = new AbortController();
+    const timeoutId1 = setTimeout(() => controller1.abort(), 60000);
+    let response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': APP.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:2000, messages:[{role:'user', content:contentParts}]}),
+        signal: controller1.signal
+      });
+    } catch(fetchErr) {
+      if (fetchErr.name === 'AbortError') throw new Error('Analysis timed out. Click to retry.');
+      throw fetchErr;
+    } finally { clearTimeout(timeoutId1); }
 
     if (!response.ok) {
       let msg = '';
@@ -3847,8 +3896,8 @@ function renderBookkeepingPage() {
     const bizName = t.bizKey==='biz1'?(q?.biz1_name||'Biz 1'):t.bizKey==='biz2'?(q?.biz2_name||'Biz 2'):'Personal';
     return `<div class="glass panel" style="padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <div style="flex:1;min-width:180px;">
-        <div style="font-size:14px;font-weight:600;">${t.description||'Untitled'}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${t.date||''} · ${bizName} · ${t.category||'Uncategorized'}</div>
+        <div style="font-size:14px;font-weight:600;">${esc(t.description)||'Untitled'}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${esc(t.date)||''} · ${esc(bizName)} · ${esc(t.category)||'Uncategorized'}</div>
       </div>
       <div style="font-size:16px;font-weight:700;color:${isIncome?'var(--accent3)':'var(--danger)'};">${isIncome?'+':'-'}$${parseFloat(t.amount||0).toLocaleString()}</div>
       <div style="display:flex;gap:6px;">
@@ -3879,7 +3928,7 @@ function showBkUploadPicker() {
     btns.innerHTML = businesses.map(b => `
       <button class="btn btn-secondary" style="width:100%;justify-content:flex-start;gap:12px;padding:14px 18px;" onclick="selectBkBizAndUpload('${b.key}')">
         <span style="font-size:18px;">${b.key==='biz1'?'🏢':b.key==='biz2'?'🏬':'👤'}</span>
-        <span style="font-size:14px;font-weight:500;">${b.name}</span>
+        <span style="font-size:14px;font-weight:500;">${esc(b.name)}</span>
       </button>`).join('');
   }
   document.getElementById('bkUploadModal').style.display = 'flex';
@@ -3945,16 +3994,25 @@ Return ONLY a JSON array (no markdown). Each transaction:
 
 Return [] if no transactions found.`});
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': APP.apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:4000, messages:[{role:'user', content:contentParts}]})
-  });
+  const controller2 = new AbortController();
+  const timeoutId2 = setTimeout(() => controller2.abort(), 60000);
+  let response;
+  try {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': APP.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:4000, messages:[{role:'user', content:contentParts}]}),
+      signal: controller2.signal
+    });
+  } catch(fetchErr) {
+    if (fetchErr.name === 'AbortError') throw new Error('Analysis timed out. Click to retry.');
+    throw fetchErr;
+  } finally { clearTimeout(timeoutId2); }
 
   if (!response.ok) { const e = await response.json(); throw new Error(e.error?.message || 'API error'); }
   const data = await response.json();
@@ -4064,16 +4122,25 @@ Write a professional tax report with:
 
 Return as clean HTML with inline styles (no external CSS). Use dark-friendly colors.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': APP.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:3000, messages:[{role:'user', content:prompt}]})
-    });
+    const controller3 = new AbortController();
+    const timeoutId3 = setTimeout(() => controller3.abort(), 60000);
+    let response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': APP.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:3000, messages:[{role:'user', content:prompt}]}),
+        signal: controller3.signal
+      });
+    } catch(fetchErr) {
+      if (fetchErr.name === 'AbortError') throw new Error('Analysis timed out. Click to retry.');
+      throw fetchErr;
+    } finally { clearTimeout(timeoutId3); }
 
     if (!response.ok) throw new Error('API error');
     const data = await response.json();
@@ -4933,10 +5000,19 @@ Business 1: ${q?.biz1_name||'Business 1'} - ${q?.biz1_type||'unknown'} (${q?.biz
 Business 2: ${q?.biz2_name||'Business 2'} - ${q?.biz2_type||'unknown'} (${q?.biz2_entity||'sole proprietor'})
 Return ONLY a JSON array: [{"title":"","priority":"high|medium|low","category":"Federal|Ohio|Business|Retirement|Family","description":"","estimatedSavings":"$X,XXX","action":"","freeTaxUSANote":""}]
 Include 8+ specific strategies including Ohio Business Income Deduction, SEP-IRA, QBI, home office, vehicle, child credits, self-employed health insurance.`;
-    const response=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json','x-api-key':APP.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]})
-    });
+    const controller4 = new AbortController();
+    const timeoutId4 = setTimeout(() => controller4.abort(), 60000);
+    let response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',headers:{'Content-Type':'application/json','x-api-key':APP.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:prompt}]}),
+        signal: controller4.signal
+      });
+    } catch(fetchErr) {
+      if (fetchErr.name === 'AbortError') throw new Error('Analysis timed out. Click to retry.');
+      throw fetchErr;
+    } finally { clearTimeout(timeoutId4); }
     if(!response.ok){const e=await response.json();throw new Error(e.error?.message||'API error');}
     const data=await response.json();
     const text=data.content.filter(c=>c.type==='text').map(c=>c.text).join('');
@@ -4960,13 +5036,13 @@ function displaySavings(data) {
       <div class="stat-card warn"><div class="stat-label">Ohio-Specific</div><div class="stat-value">${recs.filter(r=>r.category==='Ohio').length}</div></div>
     </div>
     ${sorted.map(rec=>`<div class="rec-card ${rec.priority}">
-      <div class="rec-title">${rec.priority==='high'?'🔥':rec.priority==='medium'?'💡':'📌'} ${rec.title}
-        <span class="badge badge-${rec.priority==='high'?'ready':rec.priority==='medium'?'analyzing':'pending'}" style="font-size:10px;">${rec.category}</span>
+      <div class="rec-title">${rec.priority==='high'?'🔥':rec.priority==='medium'?'💡':'📌'} ${esc(rec.title)}
+        <span class="badge badge-${rec.priority==='high'?'ready':rec.priority==='medium'?'analyzing':'pending'}" style="font-size:10px;">${esc(rec.category)}</span>
       </div>
-      <div class="rec-body">${rec.description}</div>
-      <div class="rec-savings">💰 ${rec.estimatedSavings}</div>
-      <div style="margin-top:10px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:13px;">${rec.action}</div>
-      ${rec.freeTaxUSANote?`<div style="margin-top:8px;font-size:12px;color:var(--accent);opacity:0.8;">📄 FreeTaxUSA: ${rec.freeTaxUSANote}</div>`:''}
+      <div class="rec-body">${esc(rec.description)}</div>
+      <div class="rec-savings">💰 ${esc(rec.estimatedSavings)}</div>
+      <div style="margin-top:10px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:13px;">${esc(rec.action)}</div>
+      ${rec.freeTaxUSANote?`<div style="margin-top:8px;font-size:12px;color:var(--accent);opacity:0.8;">📄 FreeTaxUSA: ${esc(rec.freeTaxUSANote)}</div>`:''}
     </div>`).join('')}`;
 }
 
@@ -5029,8 +5105,8 @@ function renderExpensesPage() {
   list.innerHTML = filtered.map(e => `
     <div class="glass panel" style="padding:14px;margin-bottom:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:600;">${e.description||'No description'}</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:2px;">${e.category} · ${e.business||'General'} · ${e.date||''}</div>
+        <div style="font-size:14px;font-weight:600;">${esc(e.description)||'No description'}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">${esc(e.category)} · ${esc(e.business)||'General'} · ${esc(e.date)||''}</div>
       </div>
       <div style="font-size:18px;font-weight:700;color:var(--danger);">-$${parseFloat(e.amount||0).toLocaleString()}</div>
       <button class="btn btn-secondary btn-sm" onclick="deleteExpense('${e.id}')">🗑</button>
@@ -5079,9 +5155,9 @@ function renderDepreciationPage() {
   el.innerHTML = `<table class="ftusa-table" style="width:100%;">
     <thead><tr><th>Asset</th><th>Business</th><th>Purchase Date</th><th>Cost</th><th>Method</th><th style="text-align:right;">${yr} Deduction</th><th></th></tr></thead>
     <tbody>${APP.assets.map(a => `<tr>
-      <td><input type="text" value="${a.name||''}" placeholder="e.g. MacBook Pro" style="background:transparent;border:none;border-bottom:1px solid transparent;width:130px;font-size:13px;color:var(--text);" onchange="updateAsset('${a.id}','name',this.value)" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"></td>
-      <td><input type="text" value="${a.business||''}" style="background:transparent;border:none;border-bottom:1px solid transparent;width:100px;font-size:12px;color:var(--text);" onchange="updateAsset('${a.id}','business',this.value)" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"></td>
-      <td><input type="text" value="${a.purchaseDate||''}" placeholder="MM/YYYY" style="background:transparent;border:none;border-bottom:1px solid transparent;width:80px;font-size:12px;color:var(--text);" onchange="updateAsset('${a.id}','purchaseDate',this.value)" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"></td>
+      <td><input type="text" value="${esc(a.name||'')}" placeholder="e.g. MacBook Pro" style="background:transparent;border:none;border-bottom:1px solid transparent;width:130px;font-size:13px;color:var(--text);" onchange="updateAsset('${a.id}','name',this.value)" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"></td>
+      <td><input type="text" value="${esc(a.business||'')}" style="background:transparent;border:none;border-bottom:1px solid transparent;width:100px;font-size:12px;color:var(--text);" onchange="updateAsset('${a.id}','business',this.value)" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"></td>
+      <td><input type="text" value="${esc(a.purchaseDate||'')}" placeholder="MM/YYYY" style="background:transparent;border:none;border-bottom:1px solid transparent;width:80px;font-size:12px;color:var(--text);" onchange="updateAsset('${a.id}','purchaseDate',this.value)" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"></td>
       <td><input type="number" value="${a.cost||0}" style="background:transparent;border:none;border-bottom:1px solid transparent;width:90px;font-size:13px;color:var(--text);" onchange="updateAsset('${a.id}','cost',this.value)" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='transparent'"></td>
       <td><select style="background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:6px;padding:4px 6px;font-size:11px;color:var(--text);" onchange="updateAsset('${a.id}','method',this.value)">
         ${DEP_METHODS.map(m=>`<option ${a.method===m?'selected':''}>${m}</option>`).join('')}
@@ -5463,9 +5539,9 @@ function calcDeductions() {
   const totalQBI = biz1Net + biz2Net;
   const totalHHIncome = n('qbi_total_income');
   const w2Wages = n('qbi_w2_wages');
-  // 2024 §199A thresholds; MFJ vs all other statuses. Phase-in range: $100K MFJ, $50K others.
+  // 2025 §199A thresholds; MFJ vs all other statuses. Phase-in range: $100K MFJ, $50K others.
   const isMFJ = (APP.questionnaire?.filingStatus || 'MFJ').toUpperCase() === 'MFJ';
-  const threshold = isMFJ ? 383900 : 191950;
+  const threshold = isMFJ ? 394600 : 197300;
   const phaseRange = isMFJ ? 100000 : 50000;
   const fullDed = totalQBI * 0.20;
   const wageLimit = w2Wages * 0.50; // simplified — ignores 25%+2.5% UBIA alternative
@@ -5586,8 +5662,8 @@ function render1099Page() {
       const needs1099 = paid >= 600;
       return `<div class="glass panel" style="padding:14px;margin-bottom:8px;">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;align-items:center;">
-          <input type="text" value="${c.name||''}" placeholder="Contractor name" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','name',this.value)">
-          <input type="text" value="${c.service||''}" placeholder="Service provided" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','service',this.value)">
+          <input type="text" value="${esc(c.name||'')}" placeholder="Contractor name" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','name',this.value)">
+          <input type="text" value="${esc(c.service||'')}" placeholder="Service provided" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','service',this.value)">
           <input type="number" value="${c.paid||''}" placeholder="Amount paid ($)" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','paid',this.value)">
           <input type="text" value="${c.ssn_ein||''}" placeholder="SSN / EIN (last 4)" maxlength="4" style="font-size:13px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','ssn_ein',this.value)">
           <select style="font-size:12px;padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:8px;color:var(--text);" onchange="update1099('${c.id}','bizKey',this.value)">
@@ -5898,10 +5974,10 @@ async function saveSupabaseConfig() {
 }
 
 function exportAllData() {
-  // Include ALL year data from localStorage
+  // Include ALL year data from localStorage — dynamically discover keys
   const allYearData = {};
-  const years = [2023, 2024, 2025, 2026, 2027];
-  years.forEach(y => {
+  const allYears = Object.keys(localStorage).filter(k => k.startsWith('tv_yearData_y')).map(k => k.replace('tv_yearData_y', ''));
+  allYears.forEach(y => {
     const yd = getStore('tv_yearData_y' + y, null);
     if (yd) allYearData['y' + y] = yd;
   });
@@ -6044,6 +6120,11 @@ document.addEventListener('click', e => {
   if (mobDropOpen &&
       !e.target.closest('#mobileDropdown') &&
       !e.target.closest('.mob-menu-btn')) {
+    closeMobileDropdown();
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && mobDropOpen) {
     closeMobileDropdown();
   }
 });

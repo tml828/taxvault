@@ -30,9 +30,11 @@ create policy "Users manage own data"
 -- STEP 3: LOCK DOWN THE OLD TABLE — run this ONLY AFTER you have
 -- signed in inside the app and seen "Cloud data migrated to your
 -- account". Until then the app still needs the old table as a
--- fallback. Enabling RLS with no policies blocks all anon access.
+-- fallback. Enabling RLS with NO policies blocks ALL anon access —
+-- this is intentional: the legacy table is fully locked out once
+-- migration is confirmed. Do NOT add any policies to taxvault_data.
 -- ============================================================
--- alter table public.taxvault_data enable row level security;
+alter table public.taxvault_data enable row level security;
 
 -- STEP 4: Grant permissions (run this if you see "account table not set up")
 grant usage on schema public to authenticated;
